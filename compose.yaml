@@ -1,0 +1,15 @@
+# Runs the WhatsApp connector on any machine with Docker: copy .env.example to .env, fill it in, then
+#   docker compose up -d
+# Put an HTTPS reverse proxy in front of port 8080: Claude only connects to https addresses.
+services:
+  whatsapp-connector:
+    build: .
+    image: whatsapp-connector
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "8080:8080"
+    volumes:
+      - whatsapp-data:/data
+volumes:
+  whatsapp-data:

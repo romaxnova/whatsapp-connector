@@ -1,0 +1,29 @@
+name: CI
+# Every push and pull request of a public copy is type-checked, tested and built as the Docker image Railway
+# deploys. In a private copy (whose plan may not start Actions) the jobs are skipped unless started by hand
+# from the Actions tab; changes there are checked on a clean checkout before they are pushed.
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    if: ${{ !github.event.repository.private || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+  docker:
+    if: ${{ !github.event.repository.private || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t whatsapp-connector .
