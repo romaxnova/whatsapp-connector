@@ -19,7 +19,7 @@ import makeWASocket, {
 } from 'baileys';
 import QRCode from 'qrcode';
 import type { Logger } from '../log.js';
-import type { SqliteAuthState } from './auth-state.js';
+import { withoutUnfinishedPairing, type SqliteAuthState } from './auth-state.js';
 import type { MessageStore } from './store.js';
 
 export type LinkState =
@@ -68,7 +68,7 @@ function baileysLogger(log: Logger, level: string) {
       trace: () => undefined,
       debug: (obj: unknown, msg?: string) => (level === 'debug' ? log.debug('baileys', summary(obj, msg)) : undefined),
       info: (obj: unknown, msg?: string) => (level === 'debug' ? log.debug('baileys', summary(obj, msg)) : undefined),
-      warn: (obj: unknown, msg?: string) => log.debug('baileys warning', summary(obj, msg)),
+      warn: (obj: unknown, msg?: string) => log.info('baileys warning', summary(obj, msg)),
       error: (obj: unknown, msg?: string) => log.warn('baileys error', summary(obj, msg)),
     };
   }
@@ -171,6 +171,10 @@ export class WhatsAppService implements WhatsAppPort {
     this.teardown();
     if (this.link.state !== 'linking') this.link = { state: 'connecting' };
     const { state, saveCreds } = this.auth.load();
+    if (withoutUnfinishedPairing(state.creds)) {
+      this.log.info('whatsapp: discarded an unfinished pairing; linking starts afresh');
+      saveCreds();
+    }
     const logger = baileysLogger(this.log, this.opts.logLevel === 'debug' ? 'debug' : 'warn');
     let version: [number, number, number] | undefined;
     try {
@@ -193,6 +197,7 @@ export class WhatsAppService implements WhatsAppPort {
     });
     this.sock = sock;
     let pairingRequested = false;
+    let qrSeen = false;
 
     sock.ev.on('creds.update', () => {
       try {
@@ -206,6 +211,10 @@ export class WhatsAppService implements WhatsAppPort {
       if (this.sock !== sock) return;
       if (u.qr && this.link.state === 'linking') {
         const linking = this.link;
+        if (!qrSeen) {
+          qrSeen = true;
+          this.log.info('whatsapp ready to link', { method: linking.phone ? 'pairing code' : 'qr' });
+        }
         if (linking.phone && !pairingRequested) {
           pairingRequested = true;
           sock
@@ -233,8 +242,10 @@ export class WhatsAppService implements WhatsAppPort {
         void this.loadGroups(sock);
       }
       if (u.connection === 'close') {
-        const code = (u.lastDisconnect?.error as { output?: { statusCode?: number } } | undefined)?.output?.statusCode;
+        const error = u.lastDisconnect?.error as (Error & { output?: { statusCode?: number }; data?: unknown }) | undefined;
+        const code = error?.output?.statusCode;
         const reason = DisconnectReason[code ?? -1] ?? `code ${code ?? 'unknown'}`;
+        const detail = { reason, code: code ?? null, error: error?.message?.slice(0, 200) ?? null, data: error?.data ? JSON.stringify(error.data).slice(0, 300) : null };
         if (code === DisconnectReason.loggedOut) {
           this.log.warn('whatsapp logged this device out: link it again from the admin page');
           this.teardown();
@@ -244,7 +255,7 @@ export class WhatsAppService implements WhatsAppPort {
         }
         if (this.link.state === 'linking' && code !== DisconnectReason.restartRequired) {
           // QR codes ran out, or the pairing failed: start over within the linking window.
-          this.log.info('whatsapp linking restarted', { reason });
+          this.log.info('whatsapp linking restarted', detail);
           setTimeout(() => void this.connect(), 3000).unref();
           return;
         }
@@ -256,7 +267,7 @@ export class WhatsAppService implements WhatsAppPort {
         const wait = this.backoffMs;
         this.backoffMs = Math.min(this.backoffMs * 2, MAX_BACKOFF_MS);
         this.link = { state: 'reconnecting', reason, retryAt: Date.now() + wait };
-        this.log.warn('whatsapp connection closed; reconnecting', { reason, inSeconds: Math.round(wait / 1000) });
+        this.log.warn('whatsapp connection closed; reconnecting', { ...detail, inSeconds: Math.round(wait / 1000) });
         clearTimeout(this.reconnectTimer);
         this.reconnectTimer = setTimeout(() => void this.connect(), wait);
         this.reconnectTimer.unref();

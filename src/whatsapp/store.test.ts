@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { openDatabase } from '../db.js';
 import { MessageStore, fold } from './store.js';
 import { parseMessage } from './content.js';
-import { SqliteAuthState } from './auth-state.js';
+import { SqliteAuthState, withoutUnfinishedPairing } from './auth-state.js';
 import { initAuthCreds } from 'baileys';
 import { ME, TEST_KEY, waMsg } from '../test-support.js';
 
@@ -131,4 +131,23 @@ test('the WhatsApp session is stored encrypted and survives a reload', async () 
   assert.deepEqual(Buffer.from(keys['1']!.public), Buffer.alloc(32, 3));
   auth.clear();
   assert.equal(again.isRegistered(), false);
+});
+
+test('a pairing that never finished is not a linked session, and is discarded before the next attempt', () => {
+  const db = openDatabase(':memory:');
+  const auth = new SqliteAuthState(db, [TEST_KEY]);
+  const { state, saveCreds } = auth.load();
+  // What requestPairingCode writes before the phone confirms anything.
+  state.creds.me = { id: ME, name: '~' };
+  state.creds.pairingCode = 'ABCD1234';
+  saveCreds();
+  assert.equal(auth.isRegistered(), false);
+  const again = auth.load();
+  assert.equal(withoutUnfinishedPairing(again.state.creds), true);
+  assert.equal(again.state.creds.me, undefined);
+  assert.equal(again.state.creds.pairingCode, undefined);
+  // Once the phone confirmed (pair-success writes account), nothing is discarded.
+  const paired = { ...again.state.creds, me: { id: ME }, account: { details: Buffer.alloc(1) } } as typeof again.state.creds;
+  assert.equal(withoutUnfinishedPairing(paired), false);
+  assert.equal(paired.me?.id, ME);
 });

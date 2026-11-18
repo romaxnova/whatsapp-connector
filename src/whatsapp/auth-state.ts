@@ -10,6 +10,22 @@ import { decrypt, deriveKey, encrypt } from '../crypto.js';
 
 const CREDS = 'creds';
 
+export function isPaired(creds: Pick<AuthenticationCreds, 'account' | 'registered'> | undefined): boolean {
+  return Boolean(creds?.account || creds?.registered);
+}
+
+/**
+ * Credentials left by a pairing that never finished (a code was requested, the phone never confirmed)
+ * name an account (`me`) the device is not linked to. Baileys then logs in instead of registering, and
+ * WhatsApp closes the connection at once, again and again. Such credentials go back to unlinked.
+ */
+export function withoutUnfinishedPairing(creds: AuthenticationCreds): boolean {
+  if (isPaired(creds) || (!creds.me && !creds.pairingCode)) return false;
+  creds.me = undefined;
+  creds.pairingCode = undefined;
+  return true;
+}
+
 export class SqliteAuthState {
   private readonly key: Buffer;
   private readonly keys: Buffer[];
@@ -43,10 +59,12 @@ export class SqliteAuthState {
     this.db.prepare('DELETE FROM wa_auth WHERE type = ? AND id = ?').run(type, id);
   }
 
-  /** Whether a linked session is stored (the phone approved this server as a device). */
+  /**
+   * Whether a linked session is stored: the phone approved this server as a device (pair-success
+   * writes `account`). A pairing code request already writes `me`, so `me` alone proves nothing.
+   */
   isRegistered(): boolean {
-    const creds = this.read(CREDS, '') as AuthenticationCreds | undefined;
-    return Boolean(creds?.registered || creds?.me?.id);
+    return isPaired(this.read(CREDS, '') as AuthenticationCreds | undefined);
   }
 
   /** Forgets the session: the server is no longer a linked device and must be linked again. */
