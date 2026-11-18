@@ -41,7 +41,7 @@ Each connector sends files only to the hosts listed in its `PEER_UPLOAD_HOSTS`. 
 
 ## What it keeps
 
-WhatsApp keeps no history on its servers. When you link, the phone sends this device its recent history (usually months to a year or more); after that, the connector receives every message live. `whatsapp_load_older` asks the phone for older messages of one chat.
+WhatsApp keeps no history on its servers. When you link, the phone sends this device its recent history (usually the last months); after that, the connector receives every message live. `whatsapp_load_older` asks the phone for older messages of one chat.
 
 - The WhatsApp session and the message text are stored **encrypted** (AES-256-GCM, key from `TOKEN_ENCRYPTION_KEY`) in one SQLite file on the volume. Chat and contact names are kept in clear so chats can be found by name.
 - Files are not stored: they are fetched from WhatsApp when asked for. Files staged for sending are kept encrypted for 24 hours at most.

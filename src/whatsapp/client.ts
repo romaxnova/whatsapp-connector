@@ -187,8 +187,9 @@ export class WhatsAppService implements WhatsAppPort {
       auth: { creds: state.creds, keys: makeCacheableSignalKeyStore(state.keys, logger) },
       logger,
       ...(version ? { version } : {}),
-      // A desktop browser gets the longest history from the phone when linking.
-      browser: Browsers.macOS('Desktop'),
+      // Chrome, not "Desktop": since mid-2026 WhatsApp closes the connection of desktop identities
+      // (428, before any QR) when they register. History still arrives; load_older fetches more.
+      browser: Browsers.macOS('Chrome'),
       syncFullHistory: this.opts.fullHistory,
       markOnlineOnConnect: false,
       shouldSyncHistoryMessage: () => true,

@@ -233,7 +233,7 @@ ${loopback ? '<div class="alert warn">The redirect goes to a program on this com
       case 'logged_out':
         return `<div class="card"><h2>WhatsApp <span class="badge warn">not linked</span></h2>
 ${s.state === 'logged_out' ? '<div class="alert warn">WhatsApp logged this connector out (removed from Linked devices on the phone, or inactive for too long). Link it again below; the index is kept.</div>' : ''}
-<p>This connector joins your WhatsApp as a linked device, like WhatsApp Web. Your phone keeps working as usual. When linking, the phone sends the recent history (often a year or more), which takes a few minutes.</p>
+<p>This connector joins your WhatsApp as a linked device, like WhatsApp Web. Your phone keeps working as usual. When linking, the phone sends recent history (usually the last months), which takes a few minutes; Claude can ask it for older messages of a chat later.</p>
 <div class="alert warn">WhatsApp does not officially support third-party linked devices. Accounts used this way for normal personal use are rarely affected, but WhatsApp may log such a device out or, in rare cases, restrict the account. Use it for your own chats, not for bulk messaging.</div></div>${linkForms}`;
       case 'linking': {
         const code = s.pairingCode
