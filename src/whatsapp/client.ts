@@ -388,9 +388,22 @@ export class WhatsAppService implements WhatsAppPort {
     return this.send(jid, content, quoted);
   }
 
+  /**
+   * The file of a message. WhatsApp's servers keep files for a few weeks; after that, or when the link
+   * has gone stale, the phone is asked to upload it again (it must be online and still have it).
+   * Baileys only asks on a 404/410, while expired files also come back as other errors.
+   */
   async download(msg: WAMessage): Promise<Buffer> {
     const sock = this.open();
-    return downloadMediaMessage(msg, 'buffer', {}, { logger: baileysLogger(this.log, 'warn'), reuploadRequest: sock.updateMediaMessage });
+    const logger = baileysLogger(this.log, 'warn');
+    try {
+      return await downloadMediaMessage(msg, 'buffer', {}, { logger, reuploadRequest: sock.updateMediaMessage });
+    } catch (first) {
+      this.log.info('whatsapp file not on the servers; asking the phone to upload it again', { error: first instanceof Error ? first.message.slice(0, 120) : 'unknown' });
+      const refreshed = await sock.updateMediaMessage(msg);
+      if (refreshed.key.remoteJid && refreshed.key.id) this.store.ingest([refreshed], { live: false });
+      return await downloadMediaMessage(refreshed, 'buffer', {}, { logger, reuploadRequest: sock.updateMediaMessage });
+    }
   }
 
   async markRead(keys: { remoteJid: string; id: string; participant?: string; fromMe: false }[]): Promise<void> {

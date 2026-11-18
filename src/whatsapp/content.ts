@@ -88,7 +88,9 @@ function contextOf(m: proto.IMessage): proto.IContextInfo | undefined {
 export function parseMessage(msg: Pick<WAMessage, 'message' | 'messageStubType' | 'messageStubParameters'>): ParsedMessage {
   const m = normalizeMessageContent(msg.message);
   if (!m) {
-    if (msg.messageStubType) return { kind: 'system', text: systemText(msg.messageStubType, msg.messageStubParameters ?? []) };
+    const text = msg.messageStubType ? systemText(msg.messageStubType, msg.messageStubParameters ?? []) : undefined;
+    // Technical notices (encryption, number changes, community plumbing) are left out: they say nothing to a reader.
+    if (text) return { kind: 'system', text };
     return { kind: 'other' };
   }
   const type = getContentType(m);
@@ -192,8 +194,8 @@ function phonesInVcard(vcard: string | null | undefined): string {
   return phones.join(', ');
 }
 
-/** A line for group events (someone added, subject changed) WhatsApp sends as stubs. */
-function systemText(stub: number, params: string[]): string {
+/** A line for the group events worth reading (someone added, name changed) WhatsApp sends as stubs; undefined for the rest. */
+function systemText(stub: number, params: string[]): string | undefined {
   const T = proto.WebMessageInfo.StubType;
   const who = params.join(', ');
   switch (stub) {
@@ -218,7 +220,7 @@ function systemText(stub: number, params: string[]): string {
     case T.REVOKE:
       return 'This message was deleted';
     default:
-      return `(${T[stub] ?? 'event'})`;
+      return undefined;
   }
 }
 
@@ -242,4 +244,9 @@ export function defaultFilename(kind: MessageKind, mimetype: string | undefined,
   const date = new Date(ts * 1000).toISOString().slice(0, 19).replace(/[-:]/g, '').replace('T', '-');
   const prefix = kind === 'voice' ? 'PTT' : kind === 'image' ? 'IMG' : kind === 'video' ? 'VID' : kind === 'audio' ? 'AUD' : kind === 'sticker' ? 'STK' : 'DOC';
   return `${prefix}-${date}-${id.slice(-6)}.${e}`;
+}
+
+/** System lines the earlier versions stored for technical notices: "(E2E_ENCRYPTED)", "(COMMUNITY_LINK_SUB_GROUP)". */
+export function isNoiseSystemText(text: string | undefined): boolean {
+  return !text || /^\([A-Z0-9_]+\)$/.test(text.trim());
 }

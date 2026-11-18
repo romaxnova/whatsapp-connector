@@ -40,6 +40,8 @@ function main(): void {
     if (n > 0) log.info('re-encrypted the whatsapp session with the current key; TOKEN_ENCRYPTION_KEY_PREVIOUS can be removed once old messages are no longer needed', { count: n });
   }
   const messages = new MessageStore(db, keys);
+  const noise = messages.purgeNoise();
+  if (noise) log.info('removed technical notices from the message index', { count: noise });
   const store = new AuthStore(db);
   const clients = new ClientRegistry(store, { allowedRedirectUris: config.allowedRedirectUris, cimdAllowedHosts: config.cimdAllowedHosts, dcrEnabled: config.dcrEnabled }, log);
   const provider = new ConnectorOAuthProvider(

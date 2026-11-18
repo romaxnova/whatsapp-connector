@@ -161,3 +161,25 @@ test('pairing numbers must be international: a national 0 is refused, + and 00 a
   assert.throws(() => internationalNumber('06 12 34 56 78'), /country code/);
   assert.throws(() => internationalNumber('+33 6'), /country code/);
 });
+
+test('technical notices are not stored; group events keep names instead of ids', () => {
+  const { db, s } = store();
+  s.upsertContact({ id: ALICE, name: 'Alice Martin' });
+  s.ingest(
+    [
+      { key: { remoteJid: GROUP, id: 'N1', fromMe: false, participant: ALICE }, messageStubType: 39 /* E2E_ENCRYPTED */, messageTimestamp: 50 } as never,
+      { key: { remoteJid: GROUP, id: 'N2', fromMe: false, participant: ALICE }, messageStubType: 27 /* GROUP_PARTICIPANT_ADD */, messageStubParameters: [ALICE], messageTimestamp: 51 } as never,
+    ],
+    { live: true },
+  );
+  const { messages } = s.messages(GROUP, { limit: 10 });
+  assert.deepEqual(messages.map((m) => m.id), ['N2']);
+  assert.equal(messages[0]!.text, 'Added: Alice Martin');
+  // A notice stored by an earlier version is cleaned up.
+  s.ingest([waMsg({ chat: GROUP, id: 'OLD', participant: ALICE, ts: 52, message: { conversation: 'x' } })], { live: true });
+  db.prepare("UPDATE wa_messages SET kind = 'system' WHERE id = 'OLD'").run();
+  const enc = (s as unknown as { seal(v: Uint8Array, c: string): Buffer }).seal(Buffer.from(JSON.stringify({ text: '(E2E_ENCRYPTED)' })), 'body:OLD');
+  db.prepare("UPDATE wa_messages SET body_enc = ? WHERE id = 'OLD'").run(enc);
+  assert.equal(s.purgeNoise(), 1);
+  assert.equal(s.findMessage('OLD').length, 0);
+});

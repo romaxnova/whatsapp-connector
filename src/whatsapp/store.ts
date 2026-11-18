@@ -11,7 +11,7 @@
 import { isJidGroup, jidNormalizedUser, proto, toNumber, type WAMessage } from 'baileys';
 import type { Db } from '../db.js';
 import { decryptBytes, deriveKey, encryptBytes } from '../crypto.js';
-import { isControl, MEDIA_KINDS, parseMessage, type MediaInfo, type MessageKind, type ParsedMessage } from './content.js';
+import { isControl, isNoiseSystemText, MEDIA_KINDS, parseMessage, type MediaInfo, type MessageKind, type ParsedMessage } from './content.js';
 
 export type ChatKind = 'direct' | 'group' | 'broadcast' | 'newsletter';
 
@@ -457,6 +457,7 @@ export class MessageStore {
     const sender = fromMe ? (this.me ?? 'me') : senderRaw ? this.canonical(senderRaw, (key as { participantAlt?: string }).participantAlt) : chatJid;
     if (!fromMe && msg.pushName && sender.includes('@')) this.upsertContact({ id: sender, notify: msg.pushName });
     const parsed = parseMessage(msg);
+    if (parsed.kind === 'system' && parsed.text) parsed.text = parsed.text.replace(/\b[\d]{6,20}@(?:s\.whatsapp\.net|lid)\b/g, (jid) => this.personName(jid));
     const ts = toNumber(msg.messageTimestamp ?? 0) || Math.floor(Date.now() / 1000);
 
     if (parsed.reaction) {
@@ -676,6 +677,22 @@ export class MessageStore {
       oldest: one('SELECT MIN(ts) FROM wa_messages') || undefined,
       newest: one('SELECT MAX(ts) FROM wa_messages') || undefined,
     };
+  }
+
+  /** Removes the technical notices earlier versions stored as system lines. Returns how many went. */
+  purgeNoise(): number {
+    const rows = this.db.prepare(`SELECT ${MSG_COLUMNS} FROM wa_messages WHERE kind = 'system'`).all() as unknown as MessageDbRow[];
+    let removed = 0;
+    for (const r of rows) {
+      if (!isNoiseSystemText(this.body(r).text)) continue;
+      this.db.prepare('DELETE FROM wa_messages WHERE chat_jid = ? AND id = ?').run(r.chat_jid, r.id);
+      removed++;
+    }
+    if (removed) {
+      // Chats whose last line was a notice keep the time of their last real message.
+      this.db.exec('UPDATE wa_chats SET last_ts = COALESCE((SELECT MAX(ts) FROM wa_messages WHERE wa_messages.chat_jid = wa_chats.jid), last_ts)');
+    }
+    return removed;
   }
 
   /** Forgets messages older than the retention period. */
