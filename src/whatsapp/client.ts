@@ -108,8 +108,7 @@ export class WhatsAppService implements WhatsAppPort {
   /** Starts linking: shows a QR code, or a pairing code for this phone number when one is given. */
   async beginLink(phone?: string): Promise<void> {
     if (this.link.state === 'open') throw new Error('WhatsApp is already linked. Unlink it first to link another account.');
-    const digits = phone?.replace(/\D/g, '');
-    if (phone !== undefined && (!digits || digits.length < 8 || digits.length > 15)) throw new Error('Enter the phone number with its country code, for example +33 6 12 34 56 78.');
+    const digits = phone === undefined ? undefined : internationalNumber(phone);
     this.auth.clear();
     this.link = { state: 'linking', startedAt: Date.now(), ...(digits ? { phone: digits } : {}) };
     await this.connect();
@@ -408,6 +407,25 @@ export class WhatsAppService implements WhatsAppPort {
       return { phone: p, ...(hit ? { jid: hit.jid } : {}) };
     });
   }
+}
+
+/**
+ * A phone number in the international form WhatsApp pairs with (digits, country code first).
+ * A pairing code is only valid for the account's exact number: "06 12 34 56 78" would ask
+ * WhatsApp for a code for a different number, which the phone then refuses ("Couldn't link device").
+ */
+export function internationalNumber(input: string): string {
+  const s = input.trim().replace(/[\s().\-\/]/g, '');
+  const example = 'Enter the number with its country code, for example +33 6 12 34 56 78.';
+  let digits: string;
+  if (s.startsWith('+')) digits = s.slice(1);
+  else if (s.startsWith('00')) digits = s.slice(2);
+  else if (s.startsWith('0')) throw new Error(`${example} A number starting with 0 is missing it.`);
+  else digits = s;
+  if (!/^\d{8,15}$/.test(digits)) throw new Error(example);
+  // "+33 0 6 …": the trunk 0 kept after a country code.
+  if (/^(33|32|41|44|49|39|31|43|34|351)0/.test(digits)) digits = digits.replace(/^(33|32|41|44|49|39|31|43|34|351)0/, '$1');
+  return digits;
 }
 
 /** The connection is not usable right now; the message says what the owner should do. */

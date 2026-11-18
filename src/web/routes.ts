@@ -237,7 +237,7 @@ ${s.state === 'logged_out' ? '<div class="alert warn">WhatsApp logged this conne
 <div class="alert warn">WhatsApp does not officially support third-party linked devices. Accounts used this way for normal personal use are rarely affected, but WhatsApp may log such a device out or, in rare cases, restrict the account. Use it for your own chats, not for bulk messaging.</div></div>${linkForms}`;
       case 'linking': {
         const code = s.pairingCode
-          ? `<p>On the phone: WhatsApp → Settings → <strong>Linked devices</strong> → <strong>Link a device</strong> → <strong>Link with phone number instead</strong>, then type:</p><div class="code">${esc(s.pairingCode)}</div>`
+          ? `<p>On the phone: WhatsApp → Settings → <strong>Linked devices</strong> → <strong>Link a device</strong> → <strong>Link with phone number instead</strong>, then type:</p><div class="code">${esc(s.pairingCode)}</div><p class="muted">Code for <strong>+${esc(s.phone ?? '')}</strong>: it only works on the phone with this WhatsApp number. Wrong number? Cancel and start again.</p>`
           : s.phone
             ? '<p>Asking WhatsApp for a pairing code…</p>'
             : '';

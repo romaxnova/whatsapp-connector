@@ -4,6 +4,7 @@ import { openDatabase } from '../db.js';
 import { MessageStore, fold } from './store.js';
 import { parseMessage } from './content.js';
 import { SqliteAuthState, withoutUnfinishedPairing } from './auth-state.js';
+import { internationalNumber } from './client.js';
 import { initAuthCreds } from 'baileys';
 import { ME, TEST_KEY, waMsg } from '../test-support.js';
 
@@ -150,4 +151,13 @@ test('a pairing that never finished is not a linked session, and is discarded be
   const paired = { ...again.state.creds, me: { id: ME }, account: { details: Buffer.alloc(1) } } as typeof again.state.creds;
   assert.equal(withoutUnfinishedPairing(paired), false);
   assert.equal(paired.me?.id, ME);
+});
+
+test('pairing numbers must be international: a national 0 is refused, + and 00 are understood', () => {
+  assert.equal(internationalNumber('+33 6 12 34 56 78'), '33612345678');
+  assert.equal(internationalNumber('0033612345678'), '33612345678');
+  assert.equal(internationalNumber('+33 (0)6 12 34 56 78'), '33612345678');
+  assert.equal(internationalNumber('33612345678'), '33612345678');
+  assert.throws(() => internationalNumber('06 12 34 56 78'), /country code/);
+  assert.throws(() => internationalNumber('+33 6'), /country code/);
 });
