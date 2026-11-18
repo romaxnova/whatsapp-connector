@@ -199,6 +199,22 @@ export class WhatsAppService implements WhatsAppPort {
     let pairingRequested = false;
     let qrSeen = false;
 
+    // While linking: the shape of every frame WhatsApp sends (tags, types, stages, error codes),
+    // never content or numbers, to see where a pairing stops.
+    sock.ws.on('frame', (frame: unknown) => {
+      if (this.link.state !== 'linking' || this.sock !== sock) return;
+      const f = frame as { tag?: string; attrs?: Record<string, string>; content?: unknown };
+      if (!f?.tag || f.tag === 'ib' || (f.tag === 'iq' && f.attrs?.['type'] === 'get')) return;
+      const a = f.attrs ?? {};
+      const children = Array.isArray(f.content) ? (f.content as { tag?: string; attrs?: Record<string, string> }[]) : [];
+      this.log.info('whatsapp frame', {
+        tag: f.tag,
+        type: a['type'] ?? null,
+        xmlns: a['xmlns'] ?? null,
+        children: children.map((c) => [c.tag, c.attrs?.['stage'], c.attrs?.['code'], c.attrs?.['text']].filter(Boolean).join(':')).join(' ').slice(0, 300),
+      });
+    });
+
     sock.ev.on('creds.update', () => {
       try {
         saveCreds();
