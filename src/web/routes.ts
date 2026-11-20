@@ -220,14 +220,16 @@ ${loopback ? '<div class="alert warn">The redirect goes to a program on this com
   function whatsappCard(s: LinkState): string {
     const stats = d.messages.stats();
     const me = d.messages.me ? phoneOf(d.messages.me) : undefined;
-    const linkForms = `<form method="post" action="/admin/link" class="card"><h2>Link with a code (on this phone)</h2>
+    const linkForms = `<form method="post" action="/admin/link" class="card"><h2>Link with a QR code (recommended)</h2><input type="hidden" name="method" value="qr">
+<p>Open this page on a computer (or another screen), then:</p>
+<div class="row"><button class="primary" type="submit">Show a QR code</button></div>
+<p class="muted">On the phone: WhatsApp → Settings → <strong>Linked devices</strong> → <strong>Link a device</strong>, and scan the code.</p></form>
+<form method="post" action="/admin/link" class="card"><h2>Or link with a code (phone only)</h2>
 <input type="hidden" name="method" value="code">
+<div class="alert warn">WhatsApp currently refuses most pairing codes from linked-device apps ("Couldn't link device"). Use the QR code if you can.</div>
 <label>Your WhatsApp number, with country code<br><input type="tel" name="phone" placeholder="+33 6 12 34 56 78" required></label>
-<div class="row"><button class="primary" type="submit">Get a pairing code</button></div>
-<p class="muted">Then on the phone: WhatsApp → Settings → <strong>Linked devices</strong> → <strong>Link a device</strong> → <strong>Link with phone number instead</strong>, and type the code shown here.</p></form>
-<form method="post" action="/admin/link" class="card"><h2>Or scan a QR code (from another screen)</h2><input type="hidden" name="method" value="qr">
-<div class="row"><button type="submit">Show a QR code</button></div>
-<p class="muted">On the phone: WhatsApp → Settings → Linked devices → Link a device, and scan the code.</p></form>`;
+<div class="row"><button type="submit">Get a pairing code</button></div>
+<p class="muted">Then on the phone: WhatsApp → Settings → Linked devices → Link a device → <strong>Link with phone number instead</strong>, and type the code shown here.</p></form>`;
     switch (s.state) {
       case 'unlinked':
       case 'logged_out':

@@ -53,7 +53,7 @@ test('admin needs the password; the right one opens the linking page', async () 
     const cookie = ok.headers.get('set-cookie')!.split(';')[0]!;
     const admin = await (await fetch(`${s.base}/admin`, { headers: { cookie } })).text();
     assert.match(admin, /not linked/);
-    assert.match(admin, /Get a pairing code/);
+    assert.match(admin, /Show a QR code/);
     assert.match(admin, /Link with phone number instead/);
   } finally {
     s.close();

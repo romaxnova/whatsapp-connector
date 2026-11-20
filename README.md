@@ -35,7 +35,7 @@ Each connector sends files only to the hosts listed in its `PEER_UPLOAD_HOSTS`. 
 
 1. Deploy this repository as a Railway service, with a **volume mounted at `/data`** and **one replica**.
 2. Set the variables `ADMIN_PASSWORD`, `TOKEN_ENCRYPTION_KEY` (`npm run generate-secrets` prints both), `PEER_UPLOAD_HOSTS` (your G-Spot Assistant's host name) and `DEFAULT_TIMEZONE` (e.g. `Europe/Paris`). Then generate a public domain for the service.
-3. Open `https://<your domain>/admin`, sign in with the password, and choose **Get a pairing code** with your number. On the phone: WhatsApp → Settings → Linked devices → Link a device → **Link with phone number instead**, and type the code. A QR code works too, if the admin page is open on another screen.
+3. Open `https://<your domain>/admin` **on a computer**, sign in with the password, and choose **Show a QR code**. On the phone: WhatsApp → Settings → Linked devices → Link a device, and scan it. The phone then sends recent history for a few minutes. (Linking by pairing code is offered too, but WhatsApp currently refuses most codes from linked-device apps.)
 4. In Claude: Settings → Connectors → Add custom connector, and paste `https://<your domain>/mcp`.
 5. In G-Spot Assistant's variables, add this server's host name to `PEER_UPLOAD_HOSTS`, so Drive files and attachments can come back.
 
