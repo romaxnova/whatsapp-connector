@@ -13,7 +13,7 @@ export interface VoiceConfig {
   voiceId: string;
   modelId: string;
   maxChars: number;
-  /** Audio tags said before every text with eleven_v3, e.g. "[strong French accent] [playful]". */
+  /** Audio tags said before every text with eleven_v3 when no style is asked for, e.g. "[strong French accent] [playful]". */
   styleTags?: string;
 }
 
@@ -42,16 +42,43 @@ export function voiceConfig(env: NodeJS.ProcessEnv): VoiceConfig | undefined {
   };
 }
 
-/** Speech for a text, as MP3, from ElevenLabs. */
-export async function synthesize(cfg: VoiceConfig, text: string, opts: { voiceId?: string; modelId?: string } = {}, fetchImpl: typeof fetch = fetch): Promise<Buffer> {
+/** The model that understands audio tags, used whenever a style is asked for. */
+export const EXPRESSIVE_VOICE_MODEL = 'eleven_v3';
+
+/**
+ * A delivery asked for in a request ("strong West African accent, playful") as audio
+ * tags ("[strong West African accent] [playful]"). Tags already in brackets are kept as they are.
+ */
+export function styleTags(style: string): string {
+  const s = style.replace(/\s+/g, ' ').trim().slice(0, 200);
+  if (!s) return '';
+  // Words outside brackets would be read aloud: keep only the tags.
+  if (s.includes('[')) return (s.match(/\[[^[\]]{1,80}\]/g) ?? []).join(' ');
+  return s
+    .split(/[,;]/)
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part) => `[${part.replace(/[[\]]/g, '')}]`)
+    .join(' ');
+}
+
+/** The model and the text actually sent to ElevenLabs for a text and an optional style. */
+export function voicePlan(cfg: VoiceConfig, text: string, opts: { modelId?: string; style?: string } = {}): { modelId: string; spoken: string; tags?: string } {
+  const asked = opts.style ? styleTags(opts.style) : '';
+  // Audio tags ([French accent], [laughs]…) are only understood by the v3 models; other models would read them aloud.
+  const modelId = opts.modelId ?? (asked && !/^eleven_v3/.test(cfg.modelId) ? EXPRESSIVE_VOICE_MODEL : cfg.modelId);
+  const tags = /^eleven_v3/.test(modelId) ? asked || cfg.styleTags : undefined;
+  return { modelId, spoken: tags ? `${tags} ${text}` : text, ...(tags ? { tags } : {}) };
+}
+
+/** Speech for a text, as MP3, from ElevenLabs, said in the style asked for if any. */
+export async function synthesize(cfg: VoiceConfig, text: string, opts: { voiceId?: string; modelId?: string; style?: string } = {}, fetchImpl: typeof fetch = fetch): Promise<Buffer> {
   const clean = text.trim();
   if (!clean) throw new VoiceError('The text to say is empty.');
   if (clean.length > cfg.maxChars) {
     throw new VoiceError(`The text is ${clean.length} characters; voice messages are limited to ${cfg.maxChars} (VOICE_MAX_CHARS) to spare the ElevenLabs quota. Shorten it or send it as text.`);
   }
-  const modelId = opts.modelId ?? cfg.modelId;
-  // Audio tags ([French accent], [laughs]…) are only understood by the v3 models; other models would read them aloud.
-  const spoken = cfg.styleTags && /^eleven_v3/.test(modelId) ? `${cfg.styleTags} ${clean}` : clean;
+  const { modelId, spoken } = voicePlan(cfg, clean, opts);
   const voiceId = (opts.voiceId ?? cfg.voiceId).trim();
   if (!/^[A-Za-z0-9]{8,40}$/.test(voiceId)) throw new VoiceError('The voice id is not valid.');
   let res: Response;

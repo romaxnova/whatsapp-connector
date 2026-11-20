@@ -226,4 +226,11 @@ test('voice: the tool is offered only when ElevenLabs is set up; it sends a voic
   const long = await call(sendVoiceTool, { chat: ALICE, text: 'x'.repeat(41) }, ctx);
   assert.match(long.text, /limited to 40/);
   assert.equal(ctx.wa.sent.length, 1);
+  // An accent asked for in the request goes to ElevenLabs as audio tags, with the expressive model.
+  let body: { text: string; model_id: string } | undefined;
+  ctx.fetchImpl = (async (_u: string | URL, init?: RequestInit) => ((body = JSON.parse(String(init!.body))), new Response(toneMp3(), { status: 200 }))) as typeof fetch;
+  const styled = await call(sendVoiceTool, { chat: ALICE, text: 'Hey, dinner?', style: 'strong West African accent, playful' }, ctx);
+  assert.equal(styled.isError, false, styled.text);
+  assert.deepEqual(body, { text: '[strong West African accent] [playful] Hey, dinner?', model_id: 'eleven_v3' });
+  assert.match(styled.text, /"style": "\[strong West African accent\] \[playful\]"/);
 });

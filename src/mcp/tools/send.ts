@@ -10,7 +10,7 @@ import { UploadError } from '../../uploads.js';
 import { humanSize } from '../extract/readable.js';
 import { mimeFromFilename, sniffMime } from '../file-types.js';
 import { chatKind } from '../../whatsapp/store.js';
-import { synthesize, toVoiceNote, VoiceError } from '../../voice/voice.js';
+import { styleTags, synthesize, toVoiceNote, VoiceError } from '../../voice/voice.js';
 
 /** Blanks Claude sometimes leaves for the user to fill: refused unless allowed, as in G-Spot Assistant. */
 const PLACEHOLDER = /\[(?:nom|name|pr[ée]nom|first name|t[ée]l[ée]phone|phone|num[ée]ro|number|adresse|address|date|heure|time|e-?mail|montant|amount|x{2,}|\.\.\.|…)[^\]]{0,24}\]|\{\{[^}]{1,40}\}\}|\bXX(?:[ .]?XX){2,}\b/i;
@@ -150,12 +150,19 @@ export const sendVoiceTool = defineTool({
   name: 'whatsapp_send_voice',
   title: 'Send a WhatsApp voice message',
   description:
-    "Says a text aloud with the user's ElevenLabs voice and sends it as a real WhatsApp voice note (play button and waveform), optionally as a reply. It is delivered at once and cannot be unsent: unless the user dictated the exact words, show them the text and the recipient first and send only once they agree. Keep it short: the text is limited (VOICE_MAX_CHARS, 600 by default) to spare the monthly ElevenLabs quota. Write the text the way it should be spoken, in the language the voice should speak.",
+    "Says a text aloud with the user's ElevenLabs voice and sends it as a real WhatsApp voice note (play button and waveform), optionally as a reply. It is delivered at once and cannot be unsent: unless the user dictated the exact words, show them the text and the recipient first and send only once they agree. Keep it short: the text is limited (VOICE_MAX_CHARS, 600 by default) to spare the monthly ElevenLabs quota. Write the text the way it should be spoken, in the language the voice should speak. When the user asks for an accent or a tone (\"with a Russian accent\", \"playful\"), put it in style.",
   inputSchema: {
     chat: chatParam,
     text: z.string().min(1).max(5000).describe('What the voice says.'),
     reply_to: replyParam,
     voice_id: z.string().min(8).max(40).optional().describe('Another ElevenLabs voice id, only when the user asks for a different voice.'),
+    style: z
+      .string()
+      .max(200)
+      .optional()
+      .describe(
+        'How to say it, only when the user asks for an accent, mood or delivery: in English, comma-separated, e.g. "strong West African accent, playful", "strong Russian accent", "whispering, excited". Uses the expressive eleven_v3 model. Leave it out and the voice speaks naturally.',
+      ),
     allow_placeholders: allowPlaceholders,
   },
   enabled: (config) => Boolean(config.voice),
@@ -169,13 +176,13 @@ export const sendVoiceTool = defineTool({
     const quoted = quotedMessage(ctx, chat, args.reply_to);
     let note;
     try {
-      note = await toVoiceNote(await synthesize(cfg, args.text, { voiceId: args.voice_id }, ctx.fetchImpl));
+      note = await toVoiceNote(await synthesize(cfg, args.text, { voiceId: args.voice_id, style: args.style }, ctx.fetchImpl));
     } catch (err) {
       if (err instanceof VoiceError) return errorResult(err.message);
       throw err;
     }
     const id = await ctx.wa.sendVoice(chat.jid, note, quoted);
-    return jsonResult({ sent: true, to: chat.name, chat_id: chat.jid, message_id: id, seconds: note.seconds, characters_used: args.text.trim().length });
+    return jsonResult({ sent: true, to: chat.name, chat_id: chat.jid, message_id: id, seconds: note.seconds, characters_used: args.text.trim().length, ...(args.style ? { style: styleTags(args.style) } : {}) });
   },
 });
 

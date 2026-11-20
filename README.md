@@ -66,11 +66,12 @@ To update later, redeploy the service: Railway pulls the newest image.
 | `ELEVENLABS_API_KEY` | Your key: elevenlabs.io → profile → **API Keys** (the free plan works) |
 | `ELEVENLABS_VOICE_ID` | The voice to use (see below) |
 | `ELEVENLABS_MODEL_ID` | Optional: `eleven_multilingual_v2` (default) or `eleven_v3` |
-| `ELEVENLABS_STYLE_TAGS` | Optional, `eleven_v3` only: tags said before every text, e.g. `[strong French accent] [playful]` |
+| `ELEVENLABS_STYLE_TAGS` | Optional, `eleven_v3` only: a default style for messages that ask for none, e.g. `[strong French accent] [playful]` |
 | `VOICE_MAX_CHARS` | Optional: the longest text per message (default 600) |
 
 - **Free plan limits.** The free plan includes about 10,000 characters a month, roughly 15 voice messages of 600 characters. It can only use the built-in voices and voices you made yourself: library voices, and creating voices through the API, need a paid plan.
-- **Accent example.** A built-in male voice with `ELEVENLABS_MODEL_ID=eleven_v3` and `ELEVENLABS_STYLE_TAGS=[strong French accent] [playful]` gives Russian with a French accent.
+- **Accent and tone per message.** Just say it: "send Pierre a voice message in French with a strong Russian accent" or "in English, West African accent, playful". Claude passes it to `whatsapp_send_voice` as `style`, which switches that message to the expressive `eleven_v3` model. Without a style, the voice speaks naturally with `ELEVENLABS_MODEL_ID`. Nothing needs setting in advance.
+- **Your own voice.** Clone it on elevenlabs.io (Voices → My Voices; instant cloning needs the Starter plan) and put its id in `ELEVENLABS_VOICE_ID`, for example `ELEVENLABS_VOICE_ID=YLCbQxXSS0chg2xbSelB` (the author's cloned voice; use your own). Speaking another language, it keeps its natural accent.
 - **Comparing voices.** `ELEVENLABS_API_KEY=… npm run voice-preview -- --list` lists your voices; `--voices id1,id2 --tags "[strong French accent]"` saves one MP3 per voice and model to compare by ear.
 - **ffmpeg.** The Docker image already includes it, to turn speech into a WhatsApp voice note (Ogg Opus).
 - **No undo.** Like any message, a voice message goes out at once and cannot be unsent: Claude shows you the text and the recipient first.

@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { toneMp3 } from '../test-fixtures.js';
-import { envelope, synthesize, telegramWaveform, toVoiceNote, voiceConfig, VoiceError } from './voice.js';
+import { envelope, styleTags, synthesize, telegramWaveform, toVoiceNote, voiceConfig, voicePlan, VoiceError } from './voice.js';
 
 const hasFfmpeg = spawnSync('ffmpeg', ['-version']).status === 0;
 
@@ -35,6 +35,20 @@ test('synthesize: refuses long texts before calling ElevenLabs, sends the key an
   assert.equal(sentText, '[strong French accent] Привет, это я');
   await synthesize({ ...cfg, styleTags: '[strong French accent]' }, 'Привет', { modelId: 'eleven_multilingual_v2' }, capture);
   assert.equal(sentText, 'Привет');
+});
+
+test('a style asked for in the request becomes audio tags and switches to the expressive model', () => {
+  assert.equal(styleTags('strong West African accent, playful'), '[strong West African accent] [playful]');
+  assert.equal(styleTags('[strong Russian accent] [whispers]'), '[strong Russian accent] [whispers]');
+  assert.equal(styleTags('say it [laughs] now'), '[laughs]');
+  assert.equal(styleTags('   '), '');
+  const cfg = { apiKey: 'k', voiceId: 'abcdefgh12', modelId: 'eleven_multilingual_v2', maxChars: 600, styleTags: '[strong French accent]' };
+  // No style: the natural model, and the default tags stay out of it.
+  assert.deepEqual(voicePlan(cfg, 'Salut'), { modelId: 'eleven_multilingual_v2', spoken: 'Salut' });
+  // A style: eleven_v3, with that style instead of the default tags.
+  assert.deepEqual(voicePlan(cfg, 'Hey', { style: 'strong West African accent' }), { modelId: 'eleven_v3', spoken: '[strong West African accent] Hey', tags: '[strong West African accent]' });
+  // A v3 default model keeps its default tags when no style is asked for.
+  assert.equal(voicePlan({ ...cfg, modelId: 'eleven_v3' }, 'Привет').spoken, '[strong French accent] Привет');
 });
 
 test('waveforms: 64 bars for WhatsApp, 100 levels packed in 5 bits for Telegram', () => {
