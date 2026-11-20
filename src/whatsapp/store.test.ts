@@ -183,3 +183,14 @@ test('technical notices are not stored; group events keep names instead of ids',
   assert.equal(s.purgeNoise(), 1);
   assert.equal(s.findMessage('OLD').length, 0);
 });
+
+test('the encryption key can be a long passphrase; short ones are refused, real keys keep working', async () => {
+  const { parseKey } = await import('../config.js');
+  const key = Buffer.alloc(32, 9);
+  assert.deepEqual(parseKey('K', key.toString('base64')), key);
+  assert.deepEqual(parseKey('K', key.toString('hex')), key);
+  const a = parseKey('K', 'Xq7-mPz4-Lw9k-Rt2v-Bn8h-Yc3d-Fs6j-Gw1e');
+  assert.equal(a.length, 32);
+  assert.deepEqual(parseKey('K', 'Xq7-mPz4-Lw9k-Rt2v-Bn8h-Yc3d-Fs6j-Gw1e'), a);
+  assert.throws(() => parseKey('K', 'short-password'), /at least 32 characters/);
+});

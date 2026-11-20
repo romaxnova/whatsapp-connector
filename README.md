@@ -39,6 +39,24 @@ Each connector sends files only to the hosts listed in its `PEER_UPLOAD_HOSTS`. 
 4. In Claude: Settings → Connectors → Add custom connector, and paste `https://<your domain>/mcp`.
 5. In G-Spot Assistant's variables, add this server's host name to `PEER_UPLOAD_HOSTS`, so Drive files and attachments can come back.
 
+### Without a GitHub account (Docker image)
+
+Every push to `main` publishes the server as a public image, `ghcr.io/romaxnova/whatsapp-connector:latest`. On Railway:
+
+1. **New project → Empty service.** In the service's **Settings → Source**, choose **Connect image** and enter `ghcr.io/romaxnova/whatsapp-connector:latest`.
+2. **Volume:** right-click the service → **Attach volume**, with mount path `/data`.
+3. **Variables:**
+   - `ADMIN_PASSWORD`: any password of 12+ characters.
+   - `TOKEN_ENCRYPTION_KEY`: any random passphrase of **32+ characters** (two generated passwords one after the other will do). **Never change it afterwards.**
+   - `DEFAULT_TIMEZONE`: e.g. `Europe/Paris`.
+4. **Settings:**
+   - **Networking → Generate domain** (port 8080).
+   - Healthcheck path `/healthz`.
+   - **Replicas: 1**, region of your choice.
+5. Continue with step 3 above: open `/admin` on a computer and scan the QR code.
+
+To update later, redeploy the service: Railway pulls the newest image.
+
 ## What it keeps
 
 WhatsApp keeps no history on its servers. When you link, the phone sends this device its recent history (usually the last months); after that, the connector receives every message live. `whatsapp_load_older` asks the phone for older messages of one chat.

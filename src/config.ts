@@ -2,6 +2,7 @@
  * Configuration: everything comes from environment variables.
  * Nothing secret is ever read from disk or from the repository.
  */
+import { scryptSync } from 'node:crypto';
 
 /** The one service this connector serves (kept as a type so the shared auth code reads the same as in G-Spot Assistant). */
 export type Service = 'whatsapp';
@@ -102,16 +103,23 @@ function int(env: NodeJS.ProcessEnv, name: string, fallback: number, min: number
   return n;
 }
 
-/** Accepts a 32-byte key as base64, base64url or hex. */
+/** Shortest passphrase accepted in place of a generated key. */
+export const MIN_PASSPHRASE_LENGTH = 32;
+
+/**
+ * Accepts a 32-byte key as base64, base64url or hex, or a long random passphrase (32+ characters,
+ * e.g. from a phone's password generator), stretched into a key with scrypt. Changing either loses
+ * the stored data, so it is set once.
+ */
 export function parseKey(name: string, value: string): Buffer {
   const v = value.trim();
-  let buf: Buffer;
-  if (/^[0-9a-fA-F]{64}$/.test(v)) buf = Buffer.from(v, 'hex');
-  else buf = Buffer.from(v, 'base64');
-  if (buf.length !== 32) {
-    throw new ConfigError(`${name} must be 32 bytes encoded as base64 or hex (run: npm run generate-secrets)`);
+  if (/^[0-9a-fA-F]{64}$/.test(v)) return Buffer.from(v, 'hex');
+  if (/^[A-Za-z0-9+/_-]{42,44}={0,2}$/.test(v)) {
+    const buf = Buffer.from(v, 'base64');
+    if (buf.length === 32) return buf;
   }
-  return buf;
+  if (v.length >= MIN_PASSPHRASE_LENGTH) return scryptSync(v, 'whatsapp-connector/token-encryption-key', 32);
+  throw new ConfigError(`${name} must be a long random passphrase (at least ${MIN_PASSPHRASE_LENGTH} characters, e.g. two generated passwords one after the other) or 32 bytes as base64 or hex (npm run generate-secrets)`);
 }
 
 /** BASE_URL, or the public address the host gives the service (Railway, Render), so a deploy needs no URL typed in. */
