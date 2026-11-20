@@ -35,7 +35,7 @@ export function testConfig(overrides: Record<string, string> = {}): Config {
 
 export class FakeWhatsApp implements WhatsAppPort {
   state: LinkState = { state: 'open', since: Date.now() };
-  sent: { jid: string; text?: string; file?: OutgoingFile; quoted?: WAMessage }[] = [];
+  sent: { jid: string; text?: string; file?: OutgoingFile; voice?: { ogg: Buffer; seconds: number; waveform: Uint8Array }; quoted?: WAMessage }[] = [];
   read: { remoteJid: string; id: string }[] = [];
   files = new Map<string, Buffer>();
   onWhatsApp = new Set<string>();
@@ -50,6 +50,10 @@ export class FakeWhatsApp implements WhatsAppPort {
   }
   async sendFile(jid: string, file: OutgoingFile, quoted?: WAMessage): Promise<string> {
     this.sent.push({ jid, file, quoted });
+    return `SENT${++this.n}`;
+  }
+  async sendVoice(jid: string, note: { ogg: Buffer; seconds: number; waveform: Uint8Array }, quoted?: WAMessage): Promise<string> {
+    this.sent.push({ jid, voice: note, quoted });
     return `SENT${++this.n}`;
   }
   async download(msg: WAMessage): Promise<Buffer> {

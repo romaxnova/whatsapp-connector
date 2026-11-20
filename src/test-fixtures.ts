@@ -3,6 +3,7 @@
  * repository carries no opaque fixtures. Used by unit tests only.
  */
 import { once } from 'node:events';
+import { spawnSync } from 'node:child_process';
 import { crc32, createDeflate, deflateSync } from 'node:zlib';
 
 /** Assembles numbered objects (object n is objects[n - 1]) into a PDF with a correct cross-reference table. */
@@ -120,3 +121,10 @@ export function makePng(width = 2, height = 2, rgb: [number, number, number] = [
   const pixels = deflateSync(Buffer.concat(Array.from({ length: height }, () => row)));
   return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk('IHDR', ihdr), chunk('IDAT', pixels), chunk('IEND', Buffer.alloc(0))]);
 }
+
+/** Two seconds of a tone, loud then quiet, as MP3 (what ElevenLabs returns). */
+export function toneMp3(): Buffer {
+  const r = spawnSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-f', 'lavfi', '-i', 'sine=frequency=220:duration=2', '-af', 'volume=eval=frame:volume=1-t/2.2', '-f', 'mp3', 'pipe:1'], { maxBuffer: 10 * 1024 * 1024 });
+  return r.stdout;
+}
+

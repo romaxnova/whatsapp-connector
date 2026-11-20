@@ -38,6 +38,8 @@ export interface ToolDefinition<Shape extends z.ZodRawShape = z.ZodRawShape> {
   title: string;
   description: string;
   inputSchema: Shape;
+  /** Offered only when this returns true (e.g. a feature that needs an API key in the environment). */
+  enabled?(config: Config): boolean;
   annotations: ToolAnnotations;
   /** Declared as a method (bivariant) so typed definitions can be collected into ToolDefinition[] without casts. */
   handler(args: z.infer<z.ZodObject<Shape>>, ctx: ToolContext): Promise<CallToolResult>;

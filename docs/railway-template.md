@@ -15,6 +15,11 @@ AI prompt needed. Templates can only be created in the Railway dashboard (or wit
    | `TOKEN_ENCRYPTION_KEY` | `${{secret(48)}}` | Generated for you. Encrypts your WhatsApp session and messages. Never change it. |
    | `DEFAULT_TIMEZONE` | `Europe/Paris` | Your time zone, e.g. Europe/Paris or America/New_York. |
    | `PORT` | `8080` | Leave as it is. |
+   | `ELEVENLABS_API_KEY` | *(empty, optional)* | Optional: your ElevenLabs API key, for voice messages. Leave empty to skip. |
+   | `ELEVENLABS_VOICE_ID` | *(empty, optional)* | Optional: the ElevenLabs voice for voice messages. |
+   | `ELEVENLABS_MODEL_ID` | `eleven_multilingual_v2` | Optional: eleven_multilingual_v2 or eleven_v3. |
+   | `ELEVENLABS_STYLE_TAGS` | *(empty, optional)* | Optional, eleven_v3 only: e.g. [strong French accent] [playful]. |
+   | `VOICE_MAX_CHARS` | `600` | Longest text per voice message (spares the ElevenLabs quota). |
 
    No `BASE_URL` or `DATA_DIR`: the server reads `RAILWAY_PUBLIC_DOMAIN` and `RAILWAY_VOLUME_MOUNT_PATH`.
    `PEER_UPLOAD_HOSTS` stays unset (only for people who also run G-Spot Assistant).

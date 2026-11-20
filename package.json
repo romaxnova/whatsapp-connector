@@ -14,7 +14,8 @@
     "dev": "npm run build && node --disable-warning=ExperimentalWarning --env-file=.env dist/server.js",
     "test": "npm run build && node --disable-warning=ExperimentalWarning --test \"dist/**/*.test.js\"",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "generate-secrets": "node --disable-warning=ExperimentalWarning scripts/generate-secrets.mjs"
+    "generate-secrets": "node --disable-warning=ExperimentalWarning scripts/generate-secrets.mjs",
+    "voice-preview": "node scripts/voice-preview.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.30.0",

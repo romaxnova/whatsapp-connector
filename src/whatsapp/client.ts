@@ -44,6 +44,8 @@ export interface WhatsAppPort {
   /** Sends text; returns the new message's id. */
   sendText(jid: string, text: string, quoted?: WAMessage): Promise<string>;
   sendFile(jid: string, file: OutgoingFile, quoted?: WAMessage): Promise<string>;
+  /** Sends a voice note (Ogg Opus) with its duration and waveform. */
+  sendVoice(jid: string, note: { ogg: Buffer; seconds: number; waveform: Uint8Array }, quoted?: WAMessage): Promise<string>;
   download(msg: WAMessage): Promise<Buffer>;
   markRead(keys: { remoteJid: string; id: string; participant?: string; fromMe: false }[]): Promise<void>;
   /** Fresh group details from WhatsApp (also stored). */
@@ -393,6 +395,11 @@ export class WhatsAppService implements WhatsAppPort {
    * has gone stale, the phone is asked to upload it again (it must be online and still have it).
    * Baileys only asks on a 404/410, while expired files also come back as other errors.
    */
+  sendVoice(jid: string, note: { ogg: Buffer; seconds: number; waveform: Uint8Array }, quoted?: WAMessage): Promise<string> {
+    // ptt: true makes it a voice note (waveform, play button) rather than an audio file.
+    return this.send(jid, { audio: note.ogg, mimetype: 'audio/ogg; codecs=opus', ptt: true, seconds: note.seconds, waveform: note.waveform } as AnyMessageContent, quoted);
+  }
+
   async download(msg: WAMessage): Promise<Buffer> {
     const sock = this.open();
     const logger = baileysLogger(this.log, 'warn');

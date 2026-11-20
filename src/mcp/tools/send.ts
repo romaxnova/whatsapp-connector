@@ -10,6 +10,7 @@ import { UploadError } from '../../uploads.js';
 import { humanSize } from '../extract/readable.js';
 import { mimeFromFilename, sniffMime } from '../file-types.js';
 import { chatKind } from '../../whatsapp/store.js';
+import { synthesize, toVoiceNote, VoiceError } from '../../voice/voice.js';
 
 /** Blanks Claude sometimes leaves for the user to fill: refused unless allowed, as in G-Spot Assistant. */
 const PLACEHOLDER = /\[(?:nom|name|pr[ée]nom|first name|t[ée]l[ée]phone|phone|num[ée]ro|number|adresse|address|date|heure|time|e-?mail|montant|amount|x{2,}|\.\.\.|…)[^\]]{0,24}\]|\{\{[^}]{1,40}\}\}|\bXX(?:[ .]?XX){2,}\b/i;
@@ -145,4 +146,37 @@ export const listUploadsTool = defineTool({
   },
 });
 
-export const sendTools = [sendMessageTool, sendFileTool, createUploadLinkTool, listUploadsTool];
+export const sendVoiceTool = defineTool({
+  name: 'whatsapp_send_voice',
+  title: 'Send a WhatsApp voice message',
+  description:
+    "Says a text aloud with the user's ElevenLabs voice and sends it as a real WhatsApp voice note (play button and waveform), optionally as a reply. It is delivered at once and cannot be unsent: unless the user dictated the exact words, show them the text and the recipient first and send only once they agree. Keep it short: the text is limited (VOICE_MAX_CHARS, 600 by default) to spare the monthly ElevenLabs quota. Write the text the way it should be spoken, in the language the voice should speak.",
+  inputSchema: {
+    chat: chatParam,
+    text: z.string().min(1).max(5000).describe('What the voice says.'),
+    reply_to: replyParam,
+    voice_id: z.string().min(8).max(40).optional().describe('Another ElevenLabs voice id, only when the user asks for a different voice.'),
+    allow_placeholders: allowPlaceholders,
+  },
+  enabled: (config) => Boolean(config.voice),
+  annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+  async handler(args, ctx) {
+    const cfg = ctx.config.voice;
+    if (!cfg) return errorResult('Voice messages are not set up on this connector: the owner sets ELEVENLABS_API_KEY and ELEVENLABS_VOICE_ID in its settings.');
+    const blank = placeholderIn(args.text);
+    if (blank && !args.allow_placeholders) return errorResult(`The text still has a blank to fill: ${blank}. Ask the user for that detail, or pass allow_placeholders: true if it belongs there.`);
+    const chat = await resolveChat(ctx, args.chat, { allowNew: true });
+    const quoted = quotedMessage(ctx, chat, args.reply_to);
+    let note;
+    try {
+      note = await toVoiceNote(await synthesize(cfg, args.text, { voiceId: args.voice_id }, ctx.fetchImpl));
+    } catch (err) {
+      if (err instanceof VoiceError) return errorResult(err.message);
+      throw err;
+    }
+    const id = await ctx.wa.sendVoice(chat.jid, note, quoted);
+    return jsonResult({ sent: true, to: chat.name, chat_id: chat.jid, message_id: id, seconds: note.seconds, characters_used: args.text.trim().length });
+  },
+});
+
+export const sendTools = [sendMessageTool, sendFileTool, sendVoiceTool, createUploadLinkTool, listUploadsTool];

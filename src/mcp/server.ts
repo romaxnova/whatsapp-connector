@@ -49,6 +49,7 @@ export function createMcpServer(ctx: ToolContext, tools: ToolDefinition[]): McpS
     { capabilities: { tools: {} }, instructions: serverInstructions(ctx) },
   );
   for (const def of tools) {
+    if (def.enabled && !def.enabled(ctx.config)) continue;
     server.registerTool(
       def.name,
       {

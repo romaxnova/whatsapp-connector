@@ -6,7 +6,11 @@ import { call, ME, testConfig, testContext, waMsg } from '../../test-support.js'
 import { makePdf, makePng } from '../../test-fixtures.js';
 import { listChatsTool, readChatTool, searchTool, markReadTool, statusTool } from './chats.js';
 import { filesToLinkTool, getFileTool, listFilesTool } from './files.js';
-import { createUploadLinkTool, sendFileTool, sendMessageTool } from './send.js';
+import { createUploadLinkTool, sendFileTool, sendMessageTool, sendVoiceTool } from './send.js';
+import { createMcpServer } from '../server.js';
+import { allTools } from './index.js';
+import { spawnSync } from 'node:child_process';
+import { toneMp3 } from '../../test-fixtures.js';
 import { parseWhen } from './common.js';
 import { UploadStore } from '../../uploads.js';
 import { uploadRouter } from '../../web/upload.js';
@@ -202,4 +206,24 @@ test('upload link then send file: what came through the link goes out as a docum
   assert.equal(sent.file?.filename, 'quittance-octobre.pdf');
   assert.equal(sent.file?.mimetype, 'application/pdf');
   assert.equal(sent.file?.caption, 'La quittance');
+});
+
+test('voice: the tool is offered only when ElevenLabs is set up; it sends a voice note, as a reply', { skip: spawnSync('ffmpeg', ['-version']).status !== 0 && 'ffmpeg not installed' }, async () => {
+  const off = seeded();
+  const listed = (ctx: ReturnType<typeof seeded>) => Object.keys((createMcpServer(ctx, allTools) as unknown as { _registeredTools: Record<string, unknown> })._registeredTools);
+  assert.ok(!listed(off).includes('whatsapp_send_voice'));
+  const ctx = seeded();
+  ctx.config = testConfig({ ELEVENLABS_API_KEY: 'k', ELEVENLABS_VOICE_ID: 'abcdefgh12', VOICE_MAX_CHARS: '40' });
+  ctx.fetchImpl = (async () => new Response(toneMp3(), { status: 200 })) as typeof fetch;
+  assert.ok(listed(ctx).includes('whatsapp_send_voice'));
+  const r = await call(sendVoiceTool, { chat: 'Appartements Paris', text: 'Je prends la visite de samedi', reply_to: 'G1' }, ctx);
+  assert.equal(r.isError, false, r.text);
+  const sent = ctx.wa.sent[0]!;
+  assert.equal(sent.jid, GROUP);
+  assert.equal(sent.quoted?.key.id, 'G1');
+  assert.equal(sent.voice!.ogg.subarray(0, 4).toString(), 'OggS');
+  assert.equal(sent.voice!.seconds, 2);
+  const long = await call(sendVoiceTool, { chat: ALICE, text: 'x'.repeat(41) }, ctx);
+  assert.match(long.text, /limited to 40/);
+  assert.equal(ctx.wa.sent.length, 1);
 });

@@ -13,6 +13,10 @@ RUN npm run build \
 
 FROM node:24-slim
 ENV NODE_ENV=production PORT=8080
+# ffmpeg turns ElevenLabs speech into WhatsApp voice notes (Ogg Opus); only used by whatsapp_send_voice.
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends ffmpeg \
+  && rm -rf /var/lib/apt/lists/*
 # Memory: glibc keeps freed memory for reuse, and after each larger buffer than
 # before (an attachment, an upload, a PDF being read) it raises the size below
 # which it keeps it, so resident memory climbs in steps and never comes down.
