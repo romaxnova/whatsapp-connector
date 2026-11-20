@@ -1,6 +1,6 @@
 # WhatsApp Connector
 
-[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/osRihM?referralCode=UpSGZQ&utm_medium=integration&utm_source=template&utm_campaign=whatsapp-connector)
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/whatsapp-connector-for-claude?referralCode=UpSGZQ&utm_medium=integration&utm_source=template&utm_campaign=whatsapp-connector)
 
 Let Claude read your WhatsApp chats and groups, browse and read the files people share, and send messages and files for you. It exchanges files with [G-Spot Assistant](https://github.com/romaxnova/g-spot-assistant), your Gmail and Drive connector, in both directions.
 
@@ -37,7 +37,7 @@ Each connector sends files only to the hosts listed in its `PEER_UPLOAD_HOSTS`. 
 
 ### One click
 
-1. Press **[Deploy on Railway](https://railway.com/deploy/osRihM?referralCode=UpSGZQ&utm_medium=integration&utm_source=template&utm_campaign=whatsapp-connector)** and sign in to Railway (no GitHub account needed).
+1. Press **[Deploy on Railway](https://railway.com/deploy/whatsapp-connector-for-claude?referralCode=UpSGZQ&utm_medium=integration&utm_source=template&utm_campaign=whatsapp-connector)** and sign in to Railway (no GitHub account needed).
 2. Choose an **admin password** (12+ characters) when asked; everything else is filled in for you (encryption key, volume, domain, one replica).
 3. Once it is deployed, open the service's domain followed by `/admin` **on a computer**, sign in with the password, and choose **Show a QR code**. On the phone: WhatsApp → Settings → Linked devices → Link a device, and scan it.
 4. In Claude: Settings → Connectors → Add custom connector, and paste `https://<your domain>/mcp`.
