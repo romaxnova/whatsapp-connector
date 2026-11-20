@@ -1,6 +1,7 @@
 /**
  * Entry point: wires configuration, storage, the WhatsApp connection and the HTTP app together.
  */
+import { hideSignalSessionDumps } from './quiet-signal.js';
 import { loadConfig, ConfigError } from './config.js';
 import { createLogger } from './log.js';
 import { checkpoint, cleanupExpired, compact, fileSizes, openDatabase } from './db.js';
@@ -19,6 +20,7 @@ import { VERSION } from './version.js';
 const DAY_S = 24 * 60 * 60;
 
 function main(): void {
+  hideSignalSessionDumps();
   let config;
   try {
     config = loadConfig();

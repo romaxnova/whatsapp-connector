@@ -62,23 +62,39 @@ export function styleTags(style: string): string {
     .join(' ');
 }
 
-/** The model and the text actually sent to ElevenLabs for a text and an optional style. */
-export function voicePlan(cfg: VoiceConfig, text: string, opts: { modelId?: string; style?: string } = {}): { modelId: string; spoken: string; tags?: string } {
+export interface VoiceOptions {
+  voiceId?: string;
+  modelId?: string;
+  /** Delivery as audio tags or plain words: "strong West African accent, playful". */
+  style?: string;
+  /**
+   * The language whose pronunciation the text is read with (ISO 639-1, e.g. "fr", "hi").
+   * A voice keeps its own accent in its own language whatever the tags say; for an
+   * accent there, the text is written phonetically in that language's spelling and read
+   * as that language: Russian in French spelling comes out with a French accent.
+   */
+  languageCode?: string;
+}
+
+/** The model, language and text actually sent to ElevenLabs. */
+export function voicePlan(cfg: VoiceConfig, text: string, opts: VoiceOptions = {}): { modelId: string; spoken: string; tags?: string; languageCode?: string } {
   const asked = opts.style ? styleTags(opts.style) : '';
+  const languageCode = opts.languageCode?.trim().toLowerCase() || undefined;
+  if (languageCode && !/^[a-z]{2,3}$/.test(languageCode)) throw new VoiceError(`"${opts.languageCode}" is not a language code: use two letters, such as fr or hi.`);
   // Audio tags ([French accent], [laughs]…) are only understood by the v3 models; other models would read them aloud.
-  const modelId = opts.modelId ?? (asked && !/^eleven_v3/.test(cfg.modelId) ? EXPRESSIVE_VOICE_MODEL : cfg.modelId);
+  const modelId = opts.modelId ?? ((asked || languageCode) && !/^eleven_v3/.test(cfg.modelId) ? EXPRESSIVE_VOICE_MODEL : cfg.modelId);
   const tags = /^eleven_v3/.test(modelId) ? asked || cfg.styleTags : undefined;
-  return { modelId, spoken: tags ? `${tags} ${text}` : text, ...(tags ? { tags } : {}) };
+  return { modelId, spoken: tags ? `${tags} ${text}` : text, ...(tags ? { tags } : {}), ...(languageCode ? { languageCode } : {}) };
 }
 
 /** Speech for a text, as MP3, from ElevenLabs, said in the style asked for if any. */
-export async function synthesize(cfg: VoiceConfig, text: string, opts: { voiceId?: string; modelId?: string; style?: string } = {}, fetchImpl: typeof fetch = fetch): Promise<Buffer> {
+export async function synthesize(cfg: VoiceConfig, text: string, opts: VoiceOptions = {}, fetchImpl: typeof fetch = fetch): Promise<Buffer> {
   const clean = text.trim();
   if (!clean) throw new VoiceError('The text to say is empty.');
   if (clean.length > cfg.maxChars) {
     throw new VoiceError(`The text is ${clean.length} characters; voice messages are limited to ${cfg.maxChars} (VOICE_MAX_CHARS) to spare the ElevenLabs quota. Shorten it or send it as text.`);
   }
-  const { modelId, spoken } = voicePlan(cfg, clean, opts);
+  const { modelId, spoken, languageCode } = voicePlan(cfg, clean, opts);
   const voiceId = (opts.voiceId ?? cfg.voiceId).trim();
   if (!/^[A-Za-z0-9]{8,40}$/.test(voiceId)) throw new VoiceError('The voice id is not valid.');
   let res: Response;
@@ -86,7 +102,7 @@ export async function synthesize(cfg: VoiceConfig, text: string, opts: { voiceId
     res = await fetchImpl(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`, {
       method: 'POST',
       headers: { 'xi-api-key': cfg.apiKey, 'content-type': 'application/json', accept: 'audio/mpeg' },
-      body: JSON.stringify({ text: spoken, model_id: modelId, ...(/^eleven_v3/.test(modelId) ? {} : { voice_settings: { stability: 0.5, similarity_boost: 0.75 } }) }),
+      body: JSON.stringify({ text: spoken, model_id: modelId, ...(languageCode ? { language_code: languageCode } : {}), ...(/^eleven_v3/.test(modelId) ? {} : { voice_settings: { stability: 0.5, similarity_boost: 0.75 } }) }),
       signal: AbortSignal.timeout(60_000),
     });
   } catch (err) {

@@ -233,4 +233,9 @@ test('voice: the tool is offered only when ElevenLabs is set up; it sends a voic
   assert.equal(styled.isError, false, styled.text);
   assert.deepEqual(body, { text: '[strong West African accent] [playful] Hey, dinner?', model_id: 'eleven_v3' });
   assert.match(styled.text, /"style": "\[strong West African accent\] \[playful\]"/);
+  // An accent from another language: the phonetic spelling is read as that language.
+  const accented = await call(sendVoiceTool, { chat: ALICE, text: 'Привет', accent_language: 'fr', phonetic_text: 'Privièt', style: 'playful' }, ctx);
+  assert.equal(accented.isError, false, accented.text);
+  assert.deepEqual(body, { text: '[playful] Privièt', model_id: 'eleven_v3', language_code: 'fr' });
+  assert.match((await call(sendVoiceTool, { chat: ALICE, text: 'Привет', accent_language: 'fr' }, ctx)).text, /needs phonetic_text/);
 });

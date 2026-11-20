@@ -70,7 +70,10 @@ To update later, redeploy the service: Railway pulls the newest image.
 | `VOICE_MAX_CHARS` | Optional: the longest text per message (default 600) |
 
 - **Free plan limits.** The free plan includes about 10,000 characters a month, roughly 15 voice messages of 600 characters. It can only use the built-in voices and voices you made yourself: library voices, and creating voices through the API, need a paid plan.
-- **Accent and tone per message.** Just say it: "send Pierre a voice message in French with a strong Russian accent" or "in English, West African accent, playful". Claude passes it to `whatsapp_send_voice` as `style`, which switches that message to the expressive `eleven_v3` model. Without a style, the voice speaks naturally with `ELEVENLABS_MODEL_ID`. Nothing needs setting in advance.
+- **Accent and tone per message.** Just say it: "send Pierre a voice message, playful, with a French accent". Nothing needs setting in advance; Claude fills `whatsapp_send_voice`:
+  - **Tone** (`style`: "playful", "whispering") becomes ElevenLabs audio tags, said with `eleven_v3`.
+  - **An accent from another language** (`accent_language` + `phonetic_text`). A voice keeps its own accent in its own language whatever the tags say, so Claude spells the same words the way a speaker of the accent's language would write them (Russian in French spelling, or in Devanagari for an Indian accent) and ElevenLabs reads them as that language. The recipient hears the original words with a real accent, in the same voice.
+  - Without either, the voice speaks naturally with `ELEVENLABS_MODEL_ID`.
 - **Your own voice.** Clone it on elevenlabs.io (Voices → My Voices; instant cloning needs the Starter plan) and put its id in `ELEVENLABS_VOICE_ID`, for example `ELEVENLABS_VOICE_ID=YLCbQxXSS0chg2xbSelB` (the author's cloned voice; use your own). Speaking another language, it keeps its natural accent.
 - **Comparing voices.** `ELEVENLABS_API_KEY=… npm run voice-preview -- --list` lists your voices; `--voices id1,id2 --tags "[strong French accent]"` saves one MP3 per voice and model to compare by ear.
 - **ffmpeg.** The Docker image already includes it, to turn speech into a WhatsApp voice note (Ogg Opus).

@@ -49,6 +49,9 @@ test('a style asked for in the request becomes audio tags and switches to the ex
   assert.deepEqual(voicePlan(cfg, 'Hey', { style: 'strong West African accent' }), { modelId: 'eleven_v3', spoken: '[strong West African accent] Hey', tags: '[strong West African accent]' });
   // A v3 default model keeps its default tags when no style is asked for.
   assert.equal(voicePlan({ ...cfg, modelId: 'eleven_v3' }, 'Привет').spoken, '[strong French accent] Привет');
+  // An accent language: eleven_v3 reads the (phonetically spelled) text as that language.
+  assert.deepEqual(voicePlan(cfg, 'Privièt', { languageCode: 'FR' }), { modelId: 'eleven_v3', spoken: '[strong French accent] Privièt', tags: '[strong French accent]', languageCode: 'fr' });
+  assert.throws(() => voicePlan(cfg, 'x', { languageCode: 'French' }), /not a language code/);
 });
 
 test('waveforms: 64 bars for WhatsApp, 100 levels packed in 5 bits for Telegram', () => {

@@ -150,7 +150,7 @@ export const sendVoiceTool = defineTool({
   name: 'whatsapp_send_voice',
   title: 'Send a WhatsApp voice message',
   description:
-    "Says a text aloud with the user's ElevenLabs voice and sends it as a real WhatsApp voice note (play button and waveform), optionally as a reply. It is delivered at once and cannot be unsent: unless the user dictated the exact words, show them the text and the recipient first and send only once they agree. Keep it short: the text is limited (VOICE_MAX_CHARS, 600 by default) to spare the monthly ElevenLabs quota. Write the text the way it should be spoken, in the language the voice should speak. When the user asks for an accent or a tone (\"with a Russian accent\", \"playful\"), put it in style.",
+    "Says a text aloud with the user's ElevenLabs voice and sends it as a real WhatsApp voice note (play button and waveform), optionally as a reply. It is delivered at once and cannot be unsent: unless the user dictated the exact words, show them the text and the recipient first and send only once they agree. Keep it short: the text is limited (VOICE_MAX_CHARS, 600 by default) to spare the monthly ElevenLabs quota. Write the text the way it should be spoken, in the language the voice should speak. Tone and mood (\"playful\", \"whispering\") go in style. An accent: the voice keeps its own accent in its own language whatever style says, so for an accent that belongs to another language (French, Indian, Spanish, Japanese…) set accent_language and write phonetic_text; style alone only suits regional accents of the text's own language (West African English) or texts in a language the voice does not speak natively.",
   inputSchema: {
     chat: chatParam,
     text: z.string().min(1).max(5000).describe('What the voice says.'),
@@ -161,7 +161,20 @@ export const sendVoiceTool = defineTool({
       .max(200)
       .optional()
       .describe(
-        'How to say it, only when the user asks for an accent, mood or delivery: in English, comma-separated, e.g. "strong West African accent, playful", "strong Russian accent", "whispering, excited". Uses the expressive eleven_v3 model. Leave it out and the voice speaks naturally.',
+        'How to say it, only when the user asks for a mood or delivery: in English, comma-separated, e.g. "playful", "whispering, excited", "strong West African accent". Uses the expressive eleven_v3 model. Leave it out and the voice speaks naturally.',
+      ),
+    accent_language: z
+      .string()
+      .regex(/^[A-Za-z]{2,3}$/)
+      .optional()
+      .describe('For an accent from another language: that language\'s ISO 639-1 code (fr for French, hi for Indian, es, it, de, ja, zh, ar, pt, en…). Requires phonetic_text. Uses eleven_v3.'),
+    phonetic_text: z
+      .string()
+      .min(1)
+      .max(5000)
+      .optional()
+      .describe(
+        'With accent_language: the same words as text, spelled the way a speaker of that language would write the sounds, in its own script and spelling rules, so that reading it as that language says the original words with its accent. Russian with a French accent: "Znaïèche, patchémou frantsouz nié panimaïète akrochkou ?"; with an Indian accent, in Devanagari: "पचेमु अल्योना निकग्दा ने अपाज़्दिवायेत?". Keep every word, keep punctuation, no translation.',
       ),
     allow_placeholders: allowPlaceholders,
   },
@@ -176,13 +189,17 @@ export const sendVoiceTool = defineTool({
     const quoted = quotedMessage(ctx, chat, args.reply_to);
     let note;
     try {
-      note = await toVoiceNote(await synthesize(cfg, args.text, { voiceId: args.voice_id, style: args.style }, ctx.fetchImpl));
+      if (args.accent_language && !args.phonetic_text) return errorResult('accent_language needs phonetic_text: the same words spelled as a speaker of that language would write their sounds.');
+      const spoken = args.accent_language && args.phonetic_text ? args.phonetic_text : args.text;
+      note = await toVoiceNote(await synthesize(cfg, spoken, { voiceId: args.voice_id, style: args.style, languageCode: args.accent_language }, ctx.fetchImpl));
     } catch (err) {
       if (err instanceof VoiceError) return errorResult(err.message);
       throw err;
     }
+    const delivery = { ...(args.style ? { style: styleTags(args.style) } : {}), ...(args.accent_language ? { accent_language: args.accent_language.toLowerCase() } : {}) };
+    ctx.log.info('voice message', { seconds: note.seconds, ...delivery });
     const id = await ctx.wa.sendVoice(chat.jid, note, quoted);
-    return jsonResult({ sent: true, to: chat.name, chat_id: chat.jid, message_id: id, seconds: note.seconds, characters_used: args.text.trim().length, ...(args.style ? { style: styleTags(args.style) } : {}) });
+    return jsonResult({ sent: true, to: chat.name, chat_id: chat.jid, message_id: id, seconds: note.seconds, characters_used: (args.accent_language && args.phonetic_text ? args.phonetic_text : args.text).trim().length, ...delivery });
   },
 });
 
