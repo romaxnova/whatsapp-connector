@@ -24,6 +24,7 @@ export function testEnv(overrides: Record<string, string> = {}): Record<string, 
     DB_PATH: ':memory:',
     DEFAULT_TIMEZONE: 'Europe/Paris',
     LOG_LEVEL: 'error',
+    OCR: 'off',
     PEER_UPLOAD_HOSTS: 'gspot.test',
     ...overrides,
   };

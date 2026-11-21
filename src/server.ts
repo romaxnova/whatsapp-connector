@@ -1,6 +1,7 @@
 /**
  * Entry point: wires configuration, storage, the WhatsApp connection and the HTTP app together.
  */
+import { MediaTextCache } from './media/media-text.js';
 import { hideSignalSessionDumps } from './quiet-signal.js';
 import { loadConfig, ConfigError } from './config.js';
 import { createLogger } from './log.js';
@@ -54,7 +55,8 @@ function main(): void {
   );
   const uploads = new UploadStore({}, Date.now, new SqliteUploadVault(db, keys));
   const wa = new WhatsAppService(auth, messages, log, { fullHistory: config.fullHistory, logLevel: config.logLevel });
-  const app = createApp({ config, log, store, clients, provider, tools: allTools, messages, wa, uploads });
+  const mediaText = new MediaTextCache(db, keys);
+  const app = createApp({ config, log, store, clients, provider, tools: allTools, messages, wa, uploads, mediaText });
   const server = app.listen(config.port, '0.0.0.0', (err?: Error) => {
     if (err) {
       log.error('could not start listening', { port: config.port, error: err.message });

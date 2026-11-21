@@ -2,6 +2,7 @@
  * Tool definition contract shared by every service module, plus output helpers
  * that keep results compact for claude.ai's limited context.
  */
+import type { MediaTextCache } from '../media/media-text.js';
 import * as z from 'zod';
 import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Config } from '../config.js';
@@ -21,6 +22,8 @@ export interface ToolContext {
   wa: WhatsAppPort;
   /** POSTs a file to another connector's upload link (replaceable in tests). */
   fetchImpl?: typeof fetch;
+  /** Transcripts and photo text already worked out, so a file costs once. */
+  mediaText?: MediaTextCache;
 }
 
 export interface ToolAnnotations {

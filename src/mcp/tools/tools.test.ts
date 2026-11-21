@@ -2,7 +2,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { AddressInfo } from 'node:net';
 import express from 'express';
-import { call, ME, testConfig, testContext, waMsg } from '../../test-support.js';
+import { call, ME, TEST_KEY, testConfig, testContext, waMsg } from '../../test-support.js';
+import { MediaTextCache } from '../../media/media-text.js';
+import { openDatabase } from '../../db.js';
 import { makePdf, makePng } from '../../test-fixtures.js';
 import { listChatsTool, readChatTool, searchTool, markReadTool, statusTool } from './chats.js';
 import { filesToLinkTool, getFileTool, listFilesTool } from './files.js';
@@ -238,4 +240,31 @@ test('voice: the tool is offered only when ElevenLabs is set up; it sends a voic
   assert.equal(accented.isError, false, accented.text);
   assert.deepEqual(body, { text: '[playful] Privièt', model_id: 'eleven_v3', language_code: 'fr' });
   assert.match((await call(sendVoiceTool, { chat: ALICE, text: 'Привет', accent_language: 'fr' }, ctx)).text, /needs phonetic_text/);
+});
+
+test('get_file: voice notes come back as a transcript, worked out once; photos with their text', async () => {
+  const ctx = seeded();
+  ctx.store.ingest([waMsg({ chat: ALICE, id: 'V1', participant: ALICE, ts: 1_763_400_300, message: { audioMessage: { ptt: true, seconds: 7, mimetype: 'audio/ogg; codecs=opus', mediaKey: Buffer.alloc(32, 1), directPath: '/v' } } })], { live: true });
+  ctx.wa.files.set('V1', Buffer.from('OggS fake'));
+  // Without the ElevenLabs key: says how to turn it on.
+  assert.match((await call(getFileTool, { message_id: 'V1' }, ctx)).text, /ELEVENLABS_API_KEY/);
+
+  ctx.config = testConfig({ ELEVENLABS_API_KEY: 'k', OCR: 'on' });
+  ctx.mediaText = new MediaTextCache(openDatabase(':memory:'), [TEST_KEY]);
+  let calls = 0;
+  ctx.fetchImpl = (async () => (calls++, new Response(JSON.stringify({ text: 'On visite samedi à 11 h ?' }), { status: 200 }))) as typeof fetch;
+  const first = await call(getFileTool, { message_id: 'V1' }, ctx);
+  assert.match(first.text, /Transcript[^\n]*\nOn visite samedi à 11 h \?/);
+  await call(getFileTool, { message_id: 'V1' }, ctx);
+  assert.equal(calls, 1, 'the second read comes from the cache');
+
+  if (spawnSync('tesseract', ['--version']).status === 0) {
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="900" height="140"><rect width="100%" height="100%" fill="white"/><text x="30" y="90" font-family="DejaVu Sans, sans-serif" font-size="44">Loyer 1100 euros charges comprises</text></svg>`;
+    ctx.wa.files.set('G3', await sharp(Buffer.from(svg)).jpeg().toBuffer());
+    const textOnly = await call(getFileTool, { message_id: 'G3', include_image: false }, ctx);
+    assert.match(textOnly.text, /Text in the image \(OCR[^\n]*\n.*Loyer 1100 euros/);
+    assert.equal(textOnly.result.content.some((c) => c.type === 'image'), false);
+    const both = await call(getFileTool, { message_id: 'G3' }, ctx);
+    assert.ok(both.result.content.some((c) => c.type === 'image'));
+  }
 });

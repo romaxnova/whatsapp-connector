@@ -703,6 +703,12 @@ export class MessageStore {
   /** Forgets everything (when WhatsApp is unlinked). */
   clear(): void {
     for (const t of ['wa_chats', 'wa_contacts', 'wa_lid', 'wa_groups', 'wa_messages', 'wa_reactions', 'wa_meta']) this.db.exec(`DELETE FROM ${t}`);
+    // Transcripts and photo text of those messages (MediaTextCache), when that table exists.
+    try {
+      this.db.exec('DELETE FROM media_text');
+    } catch {
+      /* no such table yet */
+    }
     this.me = undefined;
   }
 }

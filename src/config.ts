@@ -4,6 +4,7 @@
  */
 import { scryptSync } from 'node:crypto';
 import { voiceConfig, type VoiceConfig } from './voice/voice.js';
+import { ocrConfig, transcribeConfig, type OcrConfig, type TranscribeConfig } from './media/media-text.js';
 
 /** The one service this connector serves (kept as a type so the shared auth code reads the same as in G-Spot Assistant). */
 export type Service = 'whatsapp';
@@ -35,6 +36,10 @@ export interface Config {
   peerUploadHosts: string[];
   /** Voice messages (ElevenLabs), when ELEVENLABS_API_KEY and ELEVENLABS_VOICE_ID are set. */
   voice: VoiceConfig | undefined;
+  /** Voice notes and audio as text (ElevenLabs Speech to Text); undefined without ELEVENLABS_API_KEY. */
+  transcribe: TranscribeConfig | undefined;
+  /** Text in photos (Tesseract, on this server); undefined with OCR=off. */
+  ocr: OcrConfig | undefined;
   /** Messages older than this many days are forgotten by the index (0 keeps everything). */
   retentionDays: number;
   /** Ask the phone for the full history when linking (true), or only the recent months WhatsApp sends by default. */
@@ -221,6 +226,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     sourceUrl,
     peerUploadHosts: hostList(optional(env, 'PEER_UPLOAD_HOSTS', '')),
     voice: voiceConfig(env),
+    transcribe: transcribeConfig(env),
+    ocr: ocrConfig(env),
     retentionDays: int(env, 'MESSAGE_RETENTION_DAYS', 0, 0, 36500),
     fullHistory: bool(env, 'FULL_HISTORY', true),
     allowedRedirectUris: [...DEFAULT_REDIRECT_URIS, ...list(optional(env, 'EXTRA_REDIRECT_URIS', ''))],

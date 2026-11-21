@@ -3,6 +3,7 @@
  * protected, stateless; serves the 2026-07-28 protocol and the 2025 revisions)
  * and the browser pages.
  */
+import type { MediaTextCache } from './media/media-text.js';
 import express, { type Express, type NextFunction, type Request, type Response } from 'express';
 import { rateLimit } from 'express-rate-limit';
 import { createOAuthMetadata, getOAuthProtectedResourceMetadataUrl, mcpAuthMetadataRouter } from '@modelcontextprotocol/sdk/server/auth/router.js';
@@ -40,6 +41,7 @@ export interface AppDeps {
   /** Files staged for sending; created here when not given. */
   uploads?: UploadStore;
   fetchImpl?: typeof fetch;
+  mediaText?: MediaTextCache;
 }
 
 export function createApp(d: AppDeps): Express {
@@ -71,7 +73,7 @@ export function createApp(d: AppDeps): Express {
 
   // ---- MCP endpoint ----
   const uploads = d.uploads ?? new UploadStore();
-  const ctx: ToolContext = { config, log, uploads, store: d.messages, wa: d.wa, ...(d.fetchImpl ? { fetchImpl: d.fetchImpl } : {}) };
+  const ctx: ToolContext = { config, log, uploads, store: d.messages, wa: d.wa, ...(d.fetchImpl ? { fetchImpl: d.fetchImpl } : {}), ...(d.mediaText ? { mediaText: d.mediaText } : {}) };
   const mcp = express.Router();
   mcp.use(rateLimit({ windowMs: 60 * 1000, limit: 300, standardHeaders: true, legacyHeaders: false }));
   if (config.anthropicIpLock) mcp.use(ipAllowlist(config.anthropicIpRanges, log));

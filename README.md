@@ -92,6 +92,13 @@ To update later, redeploy the service: Railway pulls the newest image.
 - **ffmpeg.** The Docker image already includes it, to turn speech into a WhatsApp voice note (Ogg Opus).
 - **No undo.** Like any message, a voice message goes out at once and cannot be unsent: Claude shows you the text and the recipient first.
 
+## Voice notes and photos as text
+
+`whatsapp_get_file` turns media into text, only for the file Claude opens, and remembers the result (encrypted, 180 days) so each file is worked out once:
+
+- **Voice notes, audio and short videos → transcript**, by ElevenLabs speech to text, with the same `ELEVENLABS_API_KEY` as voice messages. It uses that account's quota; `TRANSCRIBE_MAX_SECONDS` (default 600) caps the length, `TRANSCRIBE=off` turns it off. The audio goes to ElevenLabs, nowhere else.
+- **Photos → their text**, read by Tesseract on your own server: the image never leaves it, and it costs nothing. Good on screenshots, listings, documents and receipts; weak on handwriting. Claude still gets the image too, unless it asks for the text only (`include_image: false`), which is cheaper. `OCR_LANGUAGES` (default `eng+fra+rus`), `OCR=off`.
+
 ## What it keeps
 
 WhatsApp keeps no history on its servers. When you link, the phone sends this device its recent history (usually the last months); after that, the connector receives every message live. `whatsapp_load_older` asks the phone for older messages of one chat.
