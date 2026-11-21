@@ -54,9 +54,9 @@ Voice messages and file exchange with G-Spot Assistant are optional and can be s
 
 ### Without a GitHub account (Docker image)
 
-Every push to `main` publishes the server as a public image, `ghcr.io/romaxnova/whatsapp-connector:latest`. On Railway:
+Every push to `main` publishes the server as a public image, `ghcr.io/romaxnova/whatsapp-connector:latest`; `:stable` is the version checked on a running server, the one the template uses. On Railway:
 
-1. **New project → Empty service.** In the service's **Settings → Source**, choose **Connect image** and enter `ghcr.io/romaxnova/whatsapp-connector:latest`.
+1. **New project → Empty service.** In the service's **Settings → Source**, choose **Connect image** and enter `ghcr.io/romaxnova/whatsapp-connector:stable`.
 2. **Volume:** right-click the service → **Attach volume**, with mount path `/data`.
 3. **Variables:**
    - `ADMIN_PASSWORD`: any password of 12+ characters.
