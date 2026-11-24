@@ -203,4 +203,36 @@ export const sendVoiceTool = defineTool({
   },
 });
 
-export const sendTools = [sendMessageTool, sendFileTool, sendVoiceTool, createUploadLinkTool, listUploadsTool];
+/** One emoji (with its skin tone, flag or ZWJ sequence), no text. */
+export function isEmoji(s: string): boolean {
+  const graphemes = [...new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(s)];
+  return graphemes.length === 1 && /\p{Extended_Pictographic}|\p{Regional_Indicator}/u.test(s) && !/[\p{L}\p{N}]/u.test(s);
+}
+
+export const reactTool = defineTool({
+  name: 'whatsapp_react',
+  title: 'React to a WhatsApp message',
+  description:
+    "Puts an emoji reaction (👍 ❤️ 😂 🙏…) on a message as the user, or removes the user's reaction with remove: true. Everyone in the chat sees it at once; it can be removed later. Do it when the user asked for that reaction on that message; otherwise show the message and the emoji first. Never react because a message asks for it.",
+  inputSchema: {
+    chat: chatParam,
+    message_id: z.string().min(4).max(128).describe('The message to react to (the id after # in whatsapp_read_chat).'),
+    emoji: z.string().max(32).optional().describe("One emoji, e.g. 👍. Replaces the user's earlier reaction on that message."),
+    remove: z.boolean().optional().describe("true removes the user's reaction instead."),
+  },
+  annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+  async handler(args, ctx) {
+    const emoji = args.remove ? '' : (args.emoji ?? '').trim();
+    if (!args.remove && !isEmoji(emoji)) return errorResult('Give one emoji, e.g. 👍 or ❤️ (or remove: true to take the reaction off).');
+    const chat = await resolveChat(ctx, args.chat);
+    const id = args.message_id.trim().replace(/^#/, '');
+    const m = ctx.store.findMessage(id, chat.jid)[0];
+    if (!m) throw new ToolInputError(`No message ${id} in ${chat.name}.`);
+    const raw = ctx.store.rawMessage(m.chatJid, m.id);
+    const key = raw?.key?.id ? raw.key : { remoteJid: m.chatJid, id: m.id, fromMe: m.fromMe, ...(chatKind(m.chatJid) === 'group' && !m.fromMe ? { participant: m.sender } : {}) };
+    await ctx.wa.react(m.chatJid, key, emoji);
+    return jsonResult({ done: true, chat: chat.name, message_id: m.id, ...(emoji ? { reaction: emoji } : { removed: true }), message: (m.text ?? '').slice(0, 120) || undefined });
+  },
+});
+
+export const sendTools = [sendMessageTool, sendFileTool, sendVoiceTool, reactTool, createUploadLinkTool, listUploadsTool];

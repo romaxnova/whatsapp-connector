@@ -20,7 +20,7 @@ You run your own private copy. It joins your WhatsApp as a **linked device**, li
 |---|---|
 | Read | `whatsapp_status`, `whatsapp_list_chats`, `whatsapp_read_chat`, `whatsapp_search_messages`, `whatsapp_group_info`, `whatsapp_find_contacts` |
 | Files | `whatsapp_list_files` (documents, photos, videos, voice notes across chats), `whatsapp_get_file` (PDF/Word/Excel/PowerPoint as text, photos as images), `whatsapp_files_to_link` (to G-Spot Assistant: Drive, Gmail) |
-| Write | `whatsapp_send_message`, `whatsapp_send_file`, `whatsapp_send_voice` (optional, see below), `whatsapp_create_upload_link`, `whatsapp_list_uploads`, `whatsapp_mark_read`, `whatsapp_load_older` |
+| Write | `whatsapp_send_message`, `whatsapp_send_file`, `whatsapp_send_voice` (optional, see below), `whatsapp_create_upload_link`, `whatsapp_list_uploads`, `whatsapp_mark_read`, `whatsapp_load_older`, `whatsapp_react` |
 
 In Claude's connector settings, set `whatsapp_send_message` and `whatsapp_send_file` to **Ask**.
 

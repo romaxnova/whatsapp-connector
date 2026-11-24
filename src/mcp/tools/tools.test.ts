@@ -8,7 +8,7 @@ import { openDatabase } from '../../db.js';
 import { makePdf, makePng } from '../../test-fixtures.js';
 import { listChatsTool, readChatTool, searchTool, markReadTool, statusTool } from './chats.js';
 import { filesToLinkTool, getFileTool, listFilesTool } from './files.js';
-import { createUploadLinkTool, sendFileTool, sendMessageTool, sendVoiceTool } from './send.js';
+import { createUploadLinkTool, isEmoji, reactTool, sendFileTool, sendMessageTool, sendVoiceTool } from './send.js';
 import { createMcpServer } from '../server.js';
 import { allTools } from './index.js';
 import { spawnSync } from 'node:child_process';
@@ -267,4 +267,20 @@ test('get_file: voice notes come back as a transcript, worked out once; photos w
     const both = await call(getFileTool, { message_id: 'G3' }, ctx);
     assert.ok(both.result.content.some((c) => c.type === 'image'));
   }
+});
+
+test('react: one emoji on a message, with its author in a group; removed with remove: true', async () => {
+  const ctx = seeded();
+  const r = await call(reactTool, { chat: 'Appartements Paris', message_id: 'G1', emoji: '👍' }, ctx);
+  assert.equal(r.isError, false, r.text);
+  const sent = ctx.wa.reactions[0]!;
+  assert.equal(sent.jid, GROUP);
+  assert.equal(sent.emoji, '👍');
+  assert.deepEqual({ id: sent.key.id, remoteJid: sent.key.remoteJid, participant: sent.key.participant }, { id: 'G1', remoteJid: GROUP, participant: ALICE });
+  assert.match(r.text, /Oberkampf/);
+  assert.equal((await call(reactTool, { chat: 'Appartements Paris', message_id: 'G1', emoji: 'ok' }, ctx)).isError, true);
+  await call(reactTool, { chat: 'Appartements Paris', message_id: 'G1', remove: true }, ctx);
+  assert.equal(ctx.wa.reactions[1]!.emoji, '');
+  for (const e of ['❤️', '👍🏽', '🇫🇷', '👨‍👩‍👧', '😂']) assert.ok(isEmoji(e), e);
+  for (const e of ['a', '👍👍', '1', ':)']) assert.ok(!isEmoji(e), e);
 });

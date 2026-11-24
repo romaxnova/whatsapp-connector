@@ -17,6 +17,7 @@ import makeWASocket, {
   type WAMessage,
   type WASocket,
 } from 'baileys';
+import type { WAMessageKey } from 'baileys';
 import QRCode from 'qrcode';
 import type { Logger } from '../log.js';
 import { withoutUnfinishedPairing, type SqliteAuthState } from './auth-state.js';
@@ -46,6 +47,8 @@ export interface WhatsAppPort {
   sendFile(jid: string, file: OutgoingFile, quoted?: WAMessage): Promise<string>;
   /** Sends a voice note (Ogg Opus) with its duration and waveform. */
   sendVoice(jid: string, note: { ogg: Buffer; seconds: number; waveform: Uint8Array }, quoted?: WAMessage): Promise<string>;
+  /** Puts an emoji reaction on a message, or removes ours with an empty emoji. */
+  react(jid: string, key: WAMessageKey, emoji: string): Promise<void>;
   download(msg: WAMessage): Promise<Buffer>;
   markRead(keys: { remoteJid: string; id: string; participant?: string; fromMe: false }[]): Promise<void>;
   /** Fresh group details from WhatsApp (also stored). */
@@ -378,6 +381,10 @@ export class WhatsAppService implements WhatsAppPort {
 
   sendText(jid: string, text: string, quoted?: WAMessage): Promise<string> {
     return this.send(jid, { text }, quoted);
+  }
+
+  async react(jid: string, key: WAMessageKey, emoji: string): Promise<void> {
+    await this.send(jid, { react: { text: emoji, key } });
   }
 
   sendFile(jid: string, file: OutgoingFile, quoted?: WAMessage): Promise<string> {

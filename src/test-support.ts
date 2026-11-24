@@ -3,7 +3,7 @@
  * what it was asked to do, and a ready-made ToolContext.
  */
 import type { CallToolResult } from '@modelcontextprotocol/server';
-import type { WAMessage } from 'baileys';
+import type { WAMessage, WAMessageKey } from 'baileys';
 import { openDatabase } from './db.js';
 import { loadConfig, type Config } from './config.js';
 import { silentLogger } from './log.js';
@@ -36,6 +36,7 @@ export function testConfig(overrides: Record<string, string> = {}): Config {
 
 export class FakeWhatsApp implements WhatsAppPort {
   state: LinkState = { state: 'open', since: Date.now() };
+  reactions: { jid: string; key: WAMessageKey; emoji: string }[] = [];
   sent: { jid: string; text?: string; file?: OutgoingFile; voice?: { ogg: Buffer; seconds: number; waveform: Uint8Array }; quoted?: WAMessage }[] = [];
   read: { remoteJid: string; id: string }[] = [];
   files = new Map<string, Buffer>();
@@ -44,6 +45,9 @@ export class FakeWhatsApp implements WhatsAppPort {
   private n = 0;
   status(): LinkState {
     return this.state;
+  }
+  async react(jid: string, key: WAMessageKey, emoji: string): Promise<void> {
+    this.reactions.push({ jid, key, emoji });
   }
   async sendText(jid: string, text: string, quoted?: WAMessage): Promise<string> {
     this.sent.push({ jid, text, quoted });
