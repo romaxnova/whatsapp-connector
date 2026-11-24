@@ -92,7 +92,10 @@ To update later, redeploy the service: Railway pulls the newest image.
 - **ffmpeg.** The Docker image already includes it, to turn speech into a WhatsApp voice note (Ogg Opus).
 - **No undo.** Like any message, a voice message goes out at once and cannot be unsent: Claude shows you the text and the recipient first.
 
-## Voice notes and photos as text
+## Documents, voice notes and photos as text
+
+**Documents** (PDF, Word, Excel, PowerPoint, text) are read on the server, no Drive needed: the file is downloaded from the chat into memory, its text extracted and handed to Claude, then dropped. The extracted text is remembered (encrypted), so reading on costs no new download. Long PDFs are read by page number (`pages: "12-14"`): Claude can read the contents page first and go straight to the section it needs, which costs far fewer tokens than reading 55 pages. **Scanned PDFs** (pictures of pages, no text layer) are read by OCR on the server, a few pages per call.
+
 
 `whatsapp_get_file` turns media into text, only for the file Claude opens, and remembers the result (encrypted, 180 days) so each file is worked out once:
 

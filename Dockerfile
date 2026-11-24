@@ -14,9 +14,10 @@ RUN npm run build \
 FROM node:24-slim
 ENV NODE_ENV=production PORT=8080
 # ffmpeg turns ElevenLabs speech into WhatsApp voice notes (Ogg Opus); only used by whatsapp_send_voice.
-# tesseract reads the text in photos (OCR) on this server, in English, French and Russian.
+# tesseract reads the text in photos and scanned PDFs (OCR) on this server, in English, French and Russian;
+# poppler-utils (pdftoppm) turns the pages of a scanned PDF into images for it.
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends ffmpeg tesseract-ocr tesseract-ocr-eng tesseract-ocr-fra tesseract-ocr-rus \
+  && apt-get install -y --no-install-recommends ffmpeg tesseract-ocr tesseract-ocr-eng tesseract-ocr-fra tesseract-ocr-rus poppler-utils \
   && rm -rf /var/lib/apt/lists/*
 # Memory: glibc keeps freed memory for reuse, and after each larger buffer than
 # before (an attachment, an upload, a PDF being read) it raises the size below

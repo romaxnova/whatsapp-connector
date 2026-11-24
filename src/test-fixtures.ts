@@ -128,3 +128,16 @@ export function toneMp3(): Buffer {
   return r.stdout;
 }
 
+
+/** A one-page PDF that is only a JPEG picture (a scan): no text layer. */
+export function makeScanPdf(jpeg: Buffer, width: number, height: number): Buffer {
+  const objects: Buffer[] = [];
+  const add = (body: Buffer | string) => objects.push(Buffer.isBuffer(body) ? body : Buffer.from(body, 'latin1'));
+  add(Buffer.concat([Buffer.from(`<< /Type /XObject /Subtype /Image /Width ${width} /Height ${height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpeg.length} >>\nstream\n`, 'latin1'), jpeg, Buffer.from('\nendstream', 'latin1')])); // 1
+  const ops = Buffer.from(`q 612 0 0 ${Math.round((612 * height) / width)} 0 0 cm /Im1 Do Q`, 'latin1');
+  add(Buffer.concat([Buffer.from(`<< /Length ${ops.length} >>\nstream\n`, 'latin1'), ops, Buffer.from('\nendstream', 'latin1')])); // 2
+  add(`<< /Type /Page /Parent 4 0 R /MediaBox [0 0 612 ${Math.round((612 * height) / width)}] /Resources << /XObject << /Im1 1 0 R >> >> /Contents 2 0 R >>`); // 3
+  add('<< /Type /Pages /Kids [3 0 R] /Count 1 >>'); // 4
+  add('<< /Type /Catalog /Pages 4 0 R >>'); // 5
+  return assemblePdf(objects, 5, '');
+}
