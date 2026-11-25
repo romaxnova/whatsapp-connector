@@ -133,7 +133,7 @@ export const readChatTool = defineTool({
     ];
     if (!messages.length) {
       const total = ctx.store.count(chat.jid);
-      return textResult(`${header.join('\n')}\n\n${total ? 'No messages in that window.' : 'No messages of this chat are in the index. whatsapp_load_older asks the phone for its history.'}`);
+      return textResult(`${header.join('\n')}\n\n${total ? 'No messages in that window.' : 'None of its messages are here yet: this chat was not in the history the phone sent when WhatsApp was linked (the phone chooses what it sends, and stops if it goes offline during the first minutes). Its new messages arrive as they are written; once there is one, whatsapp_load_older asks the phone for the ones before it, 50 at a time. To get one now, the user can send any message in the chat from the phone.'}`);
     }
     const reactions = ctx.store.reactions(chat.jid, messages.map((m) => m.id));
     const lines = messages.map((m) => messageLine(ctx, m, { reactions: reactions.get(m.id) }));
@@ -268,7 +268,7 @@ export const loadOlderTool = defineTool({
   async handler(args, ctx) {
     const chat = await resolveChat(ctx, args.chat);
     const oldest = ctx.store.oldest(chat.jid);
-    if (!oldest) throw new ToolInputError(`The index has no message of ${chat.name} to start from. Open the chat on the phone, or wait for a message, then try again.`);
+    if (!oldest) throw new ToolInputError(`None of the messages of ${chat.name} are here yet, and WhatsApp can only send older ones counting back from a message already here. As soon as one message is written in it (the user can send one from the phone), call this again.`);
     const before = ctx.store.count(chat.jid);
     await ctx.wa.requestOlder(chat.jid, oldest, args.count ?? 50);
     const added = ctx.store.count(chat.jid) - before;
