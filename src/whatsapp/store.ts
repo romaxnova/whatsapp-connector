@@ -706,6 +706,7 @@ export class MessageStore {
     // Transcripts and photo text of those messages (MediaTextCache), when that table exists.
     try {
       this.db.exec('DELETE FROM media_text');
+      this.db.exec('DELETE FROM scheduled_messages');
     } catch {
       /* no such table yet */
     }

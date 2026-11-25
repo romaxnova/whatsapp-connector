@@ -4,6 +4,8 @@ import type { AddressInfo } from 'node:net';
 import express from 'express';
 import { call, ME, TEST_KEY, testConfig, testContext, waMsg } from '../../test-support.js';
 import { MediaTextCache } from '../../media/media-text.js';
+import { ScheduledStore } from '../../schedule/scheduled.js';
+import { cancelScheduledTool, listScheduledTool, scheduleSendTool } from './schedule.js';
 import { openDatabase } from '../../db.js';
 import { makePdf, makePng } from '../../test-fixtures.js';
 import { listChatsTool, readChatTool, searchTool, markReadTool, statusTool } from './chats.js';
@@ -283,4 +285,23 @@ test('react: one emoji on a message, with its author in a group; removed with re
   assert.equal(ctx.wa.reactions[1]!.emoji, '');
   for (const e of ['❤️', '👍🏽', '🇫🇷', '👨‍👩‍👧', '😂']) assert.ok(isEmoji(e), e);
   for (const e of ['a', '👍👍', '1', ':)']) assert.ok(!isEmoji(e), e);
+});
+
+test('schedule: a message for later is queued with its recipient and local time, listed, and cancelled', async () => {
+  const ctx = seeded();
+  ctx.scheduled = new ScheduledStore(openDatabase(':memory:'), [TEST_KEY]);
+  const r = await call(scheduleSendTool, { chat: 'Alice Martin', text: 'Bonne visite demain !', send_at: '2099-01-01T08:30' }, ctx);
+  assert.match(r.text, /exactly|90 days|past/i, 'far future refused');
+  const at = new Date(Date.now() + 2 * 86400e3);
+  const local = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Paris', year: 'numeric', month: '2-digit', day: '2-digit' }).format(at) + 'T08:30';
+  const ok = JSON.parse((await call(scheduleSendTool, { chat: 'Alice Martin', text: 'Bonne visite demain !', send_at: local }, ctx)).text) as { id: string; to: string; send_at: string };
+  assert.equal(ok.to, 'Alice Martin');
+  assert.match(ok.send_at, /08:30 \(Europe\/Paris\)/);
+  assert.equal(ctx.wa.sent.length, 0, 'nothing sent now');
+  const list = JSON.parse((await call(listScheduledTool, {}, ctx)).text) as { count: number };
+  assert.equal(list.count, 1);
+  assert.match((await call(scheduleSendTool, { chat: 'Alice Martin', text: 'Hi [name]', send_at: local }, ctx)).text, /blank/);
+  assert.equal((await call(cancelScheduledTool, { id: ok.id }, ctx)).isError, false);
+  assert.equal(JSON.parse((await call(listScheduledTool, {}, ctx)).text).count, 0);
+  assert.equal((await call(cancelScheduledTool, { id: ok.id }, ctx)).isError, true);
 });

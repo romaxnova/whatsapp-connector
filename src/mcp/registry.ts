@@ -2,6 +2,7 @@
  * Tool definition contract shared by every service module, plus output helpers
  * that keep results compact for claude.ai's limited context.
  */
+import type { ScheduledStore } from '../schedule/scheduled.js';
 import type { MediaTextCache } from '../media/media-text.js';
 import * as z from 'zod';
 import type { CallToolResult } from '@modelcontextprotocol/server';
@@ -24,6 +25,8 @@ export interface ToolContext {
   fetchImpl?: typeof fetch;
   /** Transcripts and photo text already worked out, so a file costs once. */
   mediaText?: MediaTextCache;
+  /** Messages waiting to be sent later (whatsapp_schedule_send). */
+  scheduled?: ScheduledStore;
 }
 
 export interface ToolAnnotations {

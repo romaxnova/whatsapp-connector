@@ -3,6 +3,7 @@
  * protected, stateless; serves the 2026-07-28 protocol and the 2025 revisions)
  * and the browser pages.
  */
+import type { ScheduledStore } from './schedule/scheduled.js';
 import type { MediaTextCache } from './media/media-text.js';
 import express, { type Express, type NextFunction, type Request, type Response } from 'express';
 import { rateLimit } from 'express-rate-limit';
@@ -42,6 +43,7 @@ export interface AppDeps {
   uploads?: UploadStore;
   fetchImpl?: typeof fetch;
   mediaText?: MediaTextCache;
+  scheduled?: ScheduledStore;
 }
 
 export function createApp(d: AppDeps): Express {
@@ -73,7 +75,7 @@ export function createApp(d: AppDeps): Express {
 
   // ---- MCP endpoint ----
   const uploads = d.uploads ?? new UploadStore();
-  const ctx: ToolContext = { config, log, uploads, store: d.messages, wa: d.wa, ...(d.fetchImpl ? { fetchImpl: d.fetchImpl } : {}), ...(d.mediaText ? { mediaText: d.mediaText } : {}) };
+  const ctx: ToolContext = { config, log, uploads, store: d.messages, wa: d.wa, ...(d.fetchImpl ? { fetchImpl: d.fetchImpl } : {}), ...(d.mediaText ? { mediaText: d.mediaText } : {}), ...(d.scheduled ? { scheduled: d.scheduled } : {}) };
   const mcp = express.Router();
   mcp.use(rateLimit({ windowMs: 60 * 1000, limit: 300, standardHeaders: true, legacyHeaders: false }));
   if (config.anthropicIpLock) mcp.use(ipAllowlist(config.anthropicIpRanges, log));

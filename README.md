@@ -20,7 +20,7 @@ You run your own private copy. It joins your WhatsApp as a **linked device**, li
 |---|---|
 | Read | `whatsapp_status`, `whatsapp_list_chats`, `whatsapp_read_chat`, `whatsapp_search_messages`, `whatsapp_group_info`, `whatsapp_find_contacts` |
 | Files | `whatsapp_list_files` (documents, photos, videos, voice notes across chats), `whatsapp_get_file` (PDF/Word/Excel/PowerPoint as text, photos as images), `whatsapp_files_to_link` (to G-Spot Assistant: Drive, Gmail) |
-| Write | `whatsapp_send_message`, `whatsapp_send_file`, `whatsapp_send_voice` (optional, see below), `whatsapp_create_upload_link`, `whatsapp_list_uploads`, `whatsapp_mark_read`, `whatsapp_load_older`, `whatsapp_react` |
+| Write | `whatsapp_send_message`, `whatsapp_send_file`, `whatsapp_send_voice` (optional, see below), `whatsapp_create_upload_link`, `whatsapp_list_uploads`, `whatsapp_mark_read`, `whatsapp_load_older`, `whatsapp_react`, `whatsapp_schedule_send`, `whatsapp_list_scheduled`, `whatsapp_cancel_scheduled` |
 
 In Claude's connector settings, set `whatsapp_send_message` and `whatsapp_send_file` to **Ask**.
 
@@ -91,6 +91,10 @@ To update later, redeploy the service: Railway pulls the newest image.
 - **Comparing voices.** `ELEVENLABS_API_KEY=… npm run voice-preview -- --list` lists your voices; `--voices id1,id2 --tags "[strong French accent]"` saves one MP3 per voice and model to compare by ear.
 - **ffmpeg.** The Docker image already includes it, to turn speech into a WhatsApp voice note (Ogg Opus).
 - **No undo.** Like any message, a voice message goes out at once and cannot be unsent: Claude shows you the text and the recipient first.
+
+## Messages sent later
+
+"Send it to Pierre tomorrow at 8:30": `whatsapp_schedule_send` queues a text message on the server, which sends it itself at that time (read in `DEFAULT_TIMEZONE`), with no chat open and across restarts, up to 90 days ahead. Claude shows the text, recipient and time first, as for any message. `whatsapp_list_scheduled` shows what waits, `whatsapp_cancel_scheduled` cancels. If the connection is down at that time the server keeps trying for 6 hours; a message it cannot send is reported in your own chat. The text is stored encrypted, and erased with everything else when the account is unlinked or logged out.
 
 ## Documents, voice notes and photos as text
 

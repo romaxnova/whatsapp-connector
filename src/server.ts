@@ -1,6 +1,7 @@
 /**
  * Entry point: wires configuration, storage, the WhatsApp connection and the HTTP app together.
  */
+import { ScheduledSender, ScheduledStore } from './schedule/scheduled.js';
 import sharp from 'sharp';
 import { MediaTextCache } from './media/media-text.js';
 import { hideSignalSessionDumps } from './quiet-signal.js';
@@ -62,7 +63,8 @@ function main(): void {
   const uploads = new UploadStore({}, Date.now, new SqliteUploadVault(db, keys));
   const wa = new WhatsAppService(auth, messages, log, { fullHistory: config.fullHistory, logLevel: config.logLevel });
   const mediaText = new MediaTextCache(db, keys);
-  const app = createApp({ config, log, store, clients, provider, tools: allTools, messages, wa, uploads, mediaText });
+  const scheduled = new ScheduledStore(db, keys);
+  const app = createApp({ config, log, store, clients, provider, tools: allTools, messages, wa, uploads, mediaText, scheduled });
   const server = app.listen(config.port, '0.0.0.0', (err?: Error) => {
     if (err) {
       log.error('could not start listening', { port: config.port, error: err.message });
@@ -74,6 +76,20 @@ function main(): void {
   server.headersTimeout = 70_000;
   server.requestTimeout = 15 * 60_000;
 
+  // Scheduled messages go out from here; a failure is told in the user's own chat.
+  const sender = new ScheduledSender(
+    scheduled,
+    {
+      ready: () => wa.status().state === 'open',
+      send: (jid, text) => wa.sendText(jid, text),
+      notify: async (text) => {
+        if (messages.me) await wa.sendText(messages.me, text);
+      },
+    },
+    log,
+    { timezone: config.defaultTimezone },
+  );
+  sender.start();
   wa.start().catch((err: unknown) => log.error('whatsapp could not start', { error: err instanceof Error ? err.message : String(err) }));
 
   const logMemory = () => {
