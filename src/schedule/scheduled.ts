@@ -160,7 +160,7 @@ export interface SenderPort {
   notify(text: string): Promise<void>;
 }
 
-/** Sends what is due, every 30 seconds. */
+/** Sends what is due, checking every 10 seconds (one indexed query). */
 export class ScheduledSender {
   private timer: NodeJS.Timeout | undefined;
   private running = false;
@@ -173,7 +173,7 @@ export class ScheduledSender {
   ) {}
 
   start(): void {
-    this.timer = setInterval(() => void this.tick(), this.opts.intervalMs ?? 30_000);
+    this.timer = setInterval(() => void this.tick(), this.opts.intervalMs ?? 10_000);
     this.timer.unref();
     void this.tick();
   }
