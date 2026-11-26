@@ -92,7 +92,10 @@ export class WhatsAppService implements WhatsAppPort {
   private stopped = false;
   /** Waiters for on-demand history (requestOlder). */
   private historyWaiters = new Set<() => void>();
-  historySync = { chunks: 0, messages: 0, lastAt: 0, complete: false };
+  historySync: { chunks: number; messages: number; chats: number; lastAt: number; complete: boolean; progress?: number } = { chunks: 0, messages: 0, chats: 0, lastAt: 0, complete: false };
+  /** Chats whose first message just arrived with no history before it: their older messages are asked for, one chat at a time. */
+  private backfillQueue: string[] = [];
+  private backfilling = false;
 
   constructor(
     private readonly auth: SqliteAuthState,
@@ -303,7 +306,9 @@ export class WhatsAppService implements WhatsAppPort {
         const n = this.store.ingest(messages, { live: false });
         this.historySync.chunks++;
         this.historySync.messages += n;
+        this.historySync.chats += chats.length;
         this.historySync.lastAt = Date.now();
+        if (typeof progress === 'number') this.historySync.progress = progress;
         if (isLatest || progress === 100) this.historySync.complete = true;
         this.log.info('whatsapp history received', { chats: chats.length, messages: messages.length, stored: n, progress: progress ?? null });
       } catch (err) {
@@ -320,7 +325,16 @@ export class WhatsAppService implements WhatsAppPort {
     sock.ev.on('chats.upsert', (list) => this.safely('chats', () => list.forEach((c) => this.store.upsertChat(c, true))));
     sock.ev.on('chats.update', (list) => this.safely('chats', () => list.forEach((c) => this.store.upsertChat(c, false))));
     sock.ev.on('chats.delete', (ids) => this.safely('chats', () => ids.forEach((id) => this.store.deleteChat(id))));
-    sock.ev.on('messages.upsert', ({ messages, type }) => this.safely('messages', () => this.store.ingest(messages, { live: type === 'notify' || type === 'append' })));
+    sock.ev.on('messages.upsert', ({ messages, type }) =>
+      this.safely('messages', () => {
+        const live = type === 'notify' || type === 'append';
+        // A chat with no message here yet (left out of the phone's history): once its first message is in,
+        // the phone is asked for the ones before it, so quiet groups fill in by themselves when they wake up.
+        const empty = live ? [...new Set(messages.map((m) => m.key.remoteJid).filter((j): j is string => Boolean(j) && !j!.endsWith('@broadcast')))].filter((j) => this.store.count(j) === 0) : [];
+        this.store.ingest(messages, { live });
+        for (const jid of empty) if (this.store.count(jid) > 0 && !this.store.getMeta(`backfilled:${jid}`)) this.queueBackfill(jid);
+      }),
+    );
     sock.ev.on('messages.update', (updates) =>
       this.safely('message updates', () => {
         for (const u of updates) {
@@ -427,6 +441,34 @@ export class WhatsAppService implements WhatsAppPort {
   async refreshGroup(jid: string): Promise<void> {
     const g = await this.open().groupMetadata(jid);
     this.store.upsertGroup(g);
+  }
+
+  private queueBackfill(jid: string): void {
+    if (this.backfillQueue.includes(jid) || this.backfillQueue.length >= 50) return;
+    this.backfillQueue.push(jid);
+    if (!this.backfilling) void this.runBackfill();
+  }
+
+  /** One chat every 15 s, so a burst of waking groups does not flood the phone. */
+  private async runBackfill(): Promise<void> {
+    this.backfilling = true;
+    try {
+      while (this.backfillQueue.length) {
+        await new Promise((r) => setTimeout(r, 15_000).unref());
+        const jid = this.backfillQueue.shift()!;
+        const oldest = this.store.oldest(jid);
+        if (!oldest || this.link.state !== 'open') continue;
+        try {
+          await this.requestOlder(jid, oldest, 50);
+          this.store.setMeta(`backfilled:${jid}`, String(Date.now()));
+          this.log.info('asked the phone for the history of a chat that had none');
+        } catch (err) {
+          this.log.warn('could not ask for a chat history', { error: err instanceof Error ? err.message.slice(0, 200) : String(err) });
+        }
+      }
+    } finally {
+      this.backfilling = false;
+    }
   }
 
   async requestOlder(chatJid: string, oldest: { id: string; ts: number; fromMe: boolean }, count: number): Promise<void> {

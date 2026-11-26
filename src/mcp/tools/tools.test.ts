@@ -305,3 +305,16 @@ test('schedule: a message for later is queued with its recipient and local time,
   assert.equal(JSON.parse((await call(listScheduledTool, {}, ctx)).text).count, 0);
   assert.equal((await call(cancelScheduledTool, { id: ok.id }, ctx)).isError, true);
 });
+
+test('status: groups the phone sent no history for are named, with what to do', async () => {
+  const ctx = seeded();
+  const QUIET = '120363000000000099@g.us';
+  ctx.store.upsertGroup({ id: QUIET, subject: 'Copro Bastille', participants: [{ id: ALICE }, { id: ME }] });
+  ctx.store.upsertChat({ id: QUIET }, true);
+  const s = JSON.parse((await call(statusTool, {}, ctx)).text) as { without_history?: { groups: number; group_names: string[]; note: string } };
+  assert.equal(s.without_history?.groups, 1);
+  assert.deepEqual(s.without_history?.group_names, ['Copro Bastille']);
+  assert.match(s.without_history!.note, /fills in by itself/);
+  ctx.store.ingest([waMsg({ chat: QUIET, id: 'Q1', participant: ALICE, ts: 1_763_500_000, message: { conversation: 'AG le 12' } })], { live: true });
+  assert.equal(ctx.store.withoutHistory().groups, 0);
+});

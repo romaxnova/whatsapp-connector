@@ -41,7 +41,7 @@ export class FakeWhatsApp implements WhatsAppPort {
   read: { remoteJid: string; id: string }[] = [];
   files = new Map<string, Buffer>();
   onWhatsApp = new Set<string>();
-  historySync = { chunks: 0, messages: 0, lastAt: 0, complete: false };
+  historySync: { chunks: number; messages: number; chats: number; lastAt: number; complete: boolean; progress?: number } = { chunks: 0, messages: 0, chats: 0, lastAt: 0, complete: false };
   private n = 0;
   status(): LinkState {
     return this.state;

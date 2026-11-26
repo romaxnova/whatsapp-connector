@@ -108,6 +108,8 @@ To update later, redeploy the service: Railway pulls the newest image.
 
 ## What it keeps
 
+**Many chats and groups.** When linking, the phone sends your history in parts over 5 to 15 minutes (longer with hundreds of groups): keep WhatsApp open on the phone, unlocked and online, until the admin page says the history is complete. The phone still chooses what it sends, so a quiet group can arrive with no messages. The admin page and `whatsapp_status` list such groups, and each fills in by itself: as soon as someone writes in it, the connector asks the phone for the 50 messages before.
+
 WhatsApp keeps no history on its servers. When you link, the phone sends this device its recent history (usually the last months); after that, the connector receives every message live. `whatsapp_load_older` asks the phone for older messages of one chat.
 
 - The WhatsApp session and the message text are stored **encrypted** (AES-256-GCM, key from `TOKEN_ENCRYPTION_KEY`) in one SQLite file on the volume. Chat and contact names are kept in clear so chats can be found by name.

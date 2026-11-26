@@ -25,7 +25,7 @@ export const statusTool = defineTool({
   name: 'whatsapp_status',
   title: 'WhatsApp connection status',
   description:
-    'Whether WhatsApp is linked and connected, which account, how much of the history the index holds (chats, groups, messages, the oldest date) and the admin page. Call it when a tool says WhatsApp is unavailable, or when the user asks why old messages are missing.',
+    'Whether WhatsApp is linked and connected, which account, how much of the history the index holds (chats, groups, messages, the oldest date), which groups have no history yet, and the admin page. Call it when a tool says WhatsApp is unavailable, or when the user asks why a chat or old messages are missing.',
   inputSchema: {},
   annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   async handler(_args, ctx) {
@@ -39,6 +39,19 @@ export const statusTool = defineTool({
       connected_since: s.state === 'open' ? new Date(s.since).toISOString() : undefined,
       reconnecting: s.state === 'reconnecting' ? { reason: s.reason, retry_at: new Date(s.retryAt).toISOString() } : undefined,
       index: { direct_chats: stats.chats, groups: stats.groups, contacts: stats.contacts, messages: stats.messages, oldest_message: stats.oldest ? fmt(stats.oldest, tz) : undefined, newest_message: stats.newest ? fmt(stats.newest, tz) : undefined },
+      ...(() => {
+        const m = ctx.store.withoutHistory(20);
+        return m.groups || m.direct
+          ? {
+              without_history: {
+                groups: m.groups,
+                direct_chats: m.direct,
+                group_names: m.chats.filter((c) => c.kind === 'group').map((c) => c.name),
+                note: 'Not in the history the phone sent when WhatsApp was linked. Each fills in by itself once someone writes in it; to get one now, the user sends any message in it from the phone, then whatsapp_load_older goes further back.',
+              },
+            }
+          : {};
+      })(),
       timezone: tz,
       files_can_go_to: ctx.config.peerUploadHosts,
       admin_page: admin,

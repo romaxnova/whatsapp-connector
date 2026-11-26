@@ -667,6 +667,28 @@ export class MessageStore {
     return Number(r.n);
   }
 
+  /**
+   * Groups and chats known by name that have no message here: they were not in the history the phone
+   * sent when WhatsApp was linked. Groups first, most recently active first.
+   */
+  withoutHistory(limit = 50): { groups: number; direct: number; chats: { jid: string; name: string; kind: string }[] } {
+    const rows = this.db
+      .prepare(
+        `SELECT jid, kind FROM (
+           SELECT jid, kind, last_ts FROM wa_chats WHERE kind IN ('group', 'direct')
+           UNION SELECT jid, 'group', 0 FROM wa_groups WHERE jid NOT IN (SELECT jid FROM wa_chats)
+         ) c
+         WHERE NOT EXISTS (SELECT 1 FROM wa_messages m WHERE m.chat_jid = c.jid)
+         ORDER BY kind = 'group' DESC, last_ts DESC`,
+      )
+      .all() as { jid: string; kind: string }[];
+    return {
+      groups: rows.filter((r) => r.kind === 'group').length,
+      direct: rows.filter((r) => r.kind === 'direct').length,
+      chats: rows.slice(0, limit).map((r) => ({ jid: r.jid, name: this.chatName(r.jid), kind: r.kind })),
+    };
+  }
+
   stats(): { chats: number; groups: number; contacts: number; messages: number; oldest?: number; newest?: number } {
     const one = (sql: string) => Number(Object.values(this.db.prepare(sql).get() as Record<string, number>)[0] ?? 0);
     return {

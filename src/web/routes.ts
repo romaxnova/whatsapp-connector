@@ -24,7 +24,7 @@ export interface LinkControl {
   beginLink(phone?: string): Promise<void>;
   cancelLink(): void;
   unlink(): Promise<void>;
-  historySync: { chunks: number; messages: number; lastAt: number; complete: boolean };
+  historySync: { chunks: number; messages: number; chats: number; lastAt: number; complete: boolean; progress?: number };
 }
 
 export interface WebDeps {
@@ -245,6 +245,7 @@ ${s.state === 'logged_out' ? '<div class="alert warn">WhatsApp logged this conne
             : '';
         const qr = !s.phone && s.qrSvg ? `<p>Scan with WhatsApp → Settings → Linked devices → Link a device:</p><div class="qr"><img alt="QR code" width="280" height="280" src="data:image/svg+xml;base64,${Buffer.from(s.qrSvg).toString('base64')}"></div>` : !s.phone ? '<p>Preparing a QR code…</p>' : '';
         return `<div class="card"><h2>Linking WhatsApp…</h2>${code}${qr}<p class="muted">This page refreshes by itself; once the phone confirms, it shows "connected". The codes stay valid for about five minutes.</p>
+<div class="alert warn">After scanning, keep WhatsApp <strong>open on the phone</strong>, unlocked and online, until this page says the history is complete: usually 5 to 15 minutes, longer with many groups. The phone sends your chats in parts; closing WhatsApp too early leaves some out.</div>
 <form method="post" action="/admin/link/cancel"><button type="submit">Cancel</button></form></div>`;
       }
       case 'connecting':
@@ -253,10 +254,21 @@ ${s.state === 'logged_out' ? '<div class="alert warn">WhatsApp logged this conne
         return `<div class="card"><h2>WhatsApp <span class="badge warn">reconnecting</span></h2><p>The connection dropped (${esc(s.reason)}); trying again at ${esc(fmtTime(Math.floor(s.retryAt / 1000)))}. Claude can still read the index meanwhile.</p>${unlinkForm()}</div>`;
       case 'open': {
         const h = d.wa.historySync;
-        const history = h.chunks ? `<div>History from the phone: ${h.messages.toLocaleString('en')} messages in ${h.chunks} parts${h.complete ? ', complete' : ', still arriving'}.</div>` : '';
+        const arriving = h.chunks > 0 && !h.complete;
+        const history = h.chunks
+          ? `<div>History from the phone: ${h.messages.toLocaleString('en')} messages, ${h.chats.toLocaleString('en')} chats, in ${h.chunks} parts${h.complete ? ' <span class="badge">complete</span>' : `, still arriving${typeof h.progress === 'number' ? ` (${h.progress}%)` : ''}`}.</div>` +
+            (arriving ? '<div class="alert warn">Keep WhatsApp open on the phone, unlocked and online, until this says complete. This page refreshes by itself.</div>' : '')
+          : '';
+        const missing = d.messages.withoutHistory(15);
+        const gaps = missing.groups
+          ? `<details><summary>${missing.groups} group${missing.groups > 1 ? 's' : ''} without history yet${missing.direct ? ` (and ${missing.direct} direct chats)` : ''}</summary><p class="muted">The phone did not send their messages when WhatsApp was linked. Each one fills in by itself as soon as someone writes in it: the connector then asks the phone for the 50 messages before. To get one now, send any message in it from the phone.</p><ul>${missing.chats
+              .filter((c) => c.kind === 'group')
+              .map((c) => `<li>${esc(c.name)}</li>`)
+              .join('')}</ul></details>`
+          : '';
         return `<div class="card"><h2>WhatsApp <span class="badge">connected</span></h2>
 <div>Account: <strong>${esc(me ?? 'linked')}</strong>, connected since ${esc(fmtTime(Math.floor(s.since / 1000)))}</div>
-<div>Index: ${stats.chats} chats, ${stats.groups} groups, ${stats.messages.toLocaleString('en')} messages${stats.oldest ? ` (oldest ${esc(fmtTime(stats.oldest))})` : ''}</div>${history}
+<div>Index: ${stats.chats} chats, ${stats.groups} groups, ${stats.messages.toLocaleString('en')} messages${stats.oldest ? ` (oldest ${esc(fmtTime(stats.oldest))})` : ''}</div>${history}${gaps}
 ${unlinkForm()}</div>`;
       }
     }
