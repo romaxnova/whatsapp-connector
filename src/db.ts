@@ -163,6 +163,29 @@ export function fileSizes(db: Db): { pages: number; freePages: number; pageSize:
 }
 
 /** Unix time in seconds. */
+let savepoints = 0;
+
+/**
+ * Runs fn in a transaction, committed when it returns and rolled back when it throws. Inside another
+ * transaction it runs in a savepoint of it, so these nest (merging two chats while storing a message).
+ */
+export function transaction<T>(db: Db, fn: () => T): T {
+  const name = `sp${++savepoints}`;
+  db.exec(`SAVEPOINT ${name}`);
+  try {
+    const result = fn();
+    db.exec(`RELEASE ${name}`);
+    return result;
+  } catch (err) {
+    // SQLite already rolled back on some errors (SQLITE_FULL); rolling back again would hide the real error.
+    if (db.isTransaction) {
+      db.exec(`ROLLBACK TO ${name}`);
+      db.exec(`RELEASE ${name}`);
+    }
+    throw err;
+  }
+}
+
 export function now(): number {
   return Math.floor(Date.now() / 1000);
 }

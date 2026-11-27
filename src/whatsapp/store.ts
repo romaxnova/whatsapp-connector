@@ -9,7 +9,7 @@
  * Files are not stored: they are fetched from WhatsApp when asked for.
  */
 import { isJidGroup, jidNormalizedUser, proto, toNumber, type WAMessage } from 'baileys';
-import type { Db } from '../db.js';
+import { transaction, type Db } from '../db.js';
 import { decryptBytes, deriveKey, encryptBytes } from '../crypto.js';
 import { isControl, isNoiseSystemText, MEDIA_KINDS, parseMessage, type MediaInfo, type MessageKind, type ParsedMessage } from './content.js';
 
@@ -167,6 +167,17 @@ interface MessageDbRow {
 
 const MSG_COLUMNS = 'chat_jid, id, from_me, sender, ts, kind, mimetype, size, body_enc, edited, deleted';
 
+/** Some messages of a batch could not be stored; the others were. */
+export class IngestError extends Error {
+  constructor(
+    message: string,
+    readonly stored: number,
+  ) {
+    super(message);
+    this.name = 'IngestError';
+  }
+}
+
 export class MessageStore {
   private readonly keys: Buffer[];
   private readonly key: Buffer;
@@ -233,8 +244,7 @@ export class MessageStore {
     this.db.prepare('INSERT INTO wa_lid (lid, pn) VALUES (?, ?) ON CONFLICT(lid) DO UPDATE SET pn = excluded.pn').run(l, p);
     const lidChat = this.db.prepare('SELECT 1 FROM wa_chats WHERE jid = ?').get(l);
     if (lidChat) {
-      this.db.exec('BEGIN');
-      try {
+      transaction(this.db, () => {
         this.db.prepare('UPDATE OR IGNORE wa_messages SET chat_jid = ? WHERE chat_jid = ?').run(p, l);
         this.db.prepare('DELETE FROM wa_messages WHERE chat_jid = ?').run(l);
         this.db.prepare('UPDATE OR IGNORE wa_reactions SET chat_jid = ? WHERE chat_jid = ?').run(p, l);
@@ -244,11 +254,7 @@ export class MessageStore {
             ON CONFLICT(jid) DO UPDATE SET unread = wa_chats.unread + excluded.unread, last_ts = MAX(wa_chats.last_ts, excluded.last_ts), name = COALESCE(wa_chats.name, excluded.name)`)
           .run(p, old.name, old.unread, old.last_ts);
         this.db.prepare('DELETE FROM wa_chats WHERE jid = ?').run(l);
-        this.db.exec('COMMIT');
-      } catch (err) {
-        this.db.exec('ROLLBACK');
-        throw err;
-      }
+      });
     }
     this.db.prepare('UPDATE wa_messages SET sender = ? WHERE sender = ?').run(p, l);
   }
@@ -436,14 +442,18 @@ export class MessageStore {
    */
   ingest(messages: WAMessage[], opts: { live: boolean }): number {
     let stored = 0;
-    this.db.exec('BEGIN');
-    try {
-      for (const msg of messages) if (this.ingestOne(msg, opts.live)) stored++;
-      this.db.exec('COMMIT');
-    } catch (err) {
-      this.db.exec('ROLLBACK');
-      throw err;
-    }
+    const failed: string[] = [];
+    transaction(this.db, () => {
+      for (const msg of messages) {
+        // Each message in its own savepoint: one that cannot be stored no longer takes the others with it.
+        try {
+          if (transaction(this.db, () => this.ingestOne(msg, opts.live))) stored++;
+        } catch (err) {
+          failed.push(err instanceof Error ? err.message : String(err));
+        }
+      }
+    });
+    if (failed.length) throw new IngestError(`${failed.length} of ${messages.length} messages could not be stored (the others were): ${failed[0]!.slice(0, 200)}`, stored);
     return stored;
   }
 
@@ -654,6 +664,12 @@ export class MessageStore {
     const rows = this.db.prepare('SELECT id, sender FROM wa_messages WHERE chat_jid = ? AND from_me = 0 ORDER BY ts DESC LIMIT ?').all(j, n) as { id: string; sender: string }[];
     const group = chatKind(j) === 'group';
     return rows.map((r) => ({ remoteJid: j, id: r.id, fromMe: false as const, ...(group ? { participant: r.sender } : {}) }));
+  }
+
+  /** One stored message of a chat, as an anchor to ask the phone for what came before it. */
+  anchor(chatJid: string, id: string): { id: string; ts: number; fromMe: boolean } | undefined {
+    const r = this.db.prepare('SELECT id, ts, from_me FROM wa_messages WHERE chat_jid = ? AND id = ?').get(this.canonical(chatJid), id) as { id: string; ts: number; from_me: number } | undefined;
+    return r ? { id: r.id, ts: r.ts, fromMe: Boolean(r.from_me) } : undefined;
   }
 
   /** The oldest message stored for a chat (to ask the phone for what came before it). */

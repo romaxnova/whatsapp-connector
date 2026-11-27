@@ -5,7 +5,7 @@
  * so they never touch the disk in clear (Baileys' own multi-file store would).
  */
 import { BufferJSON, initAuthCreds, proto, type AuthenticationCreds, type AuthenticationState, type SignalDataTypeMap } from 'baileys';
-import type { Db } from '../db.js';
+import { transaction, type Db } from '../db.js';
 import { decrypt, deriveKey, encrypt } from '../crypto.js';
 
 const CREDS = 'creds';
@@ -96,19 +96,14 @@ export class SqliteAuthState {
           return out;
         },
         set: (data) => {
-          this.db.exec('BEGIN');
-          try {
+          transaction(this.db, () => {
             for (const [type, values] of Object.entries(data)) {
               for (const [id, value] of Object.entries(values ?? {})) {
                 if (value === null || value === undefined) this.remove(type, id);
                 else this.write(type, id, value);
               }
             }
-            this.db.exec('COMMIT');
-          } catch (err) {
-            this.db.exec('ROLLBACK');
-            throw err;
-          }
+          });
         },
         clear: () => {
           this.db.prepare('DELETE FROM wa_auth WHERE type != ?').run(CREDS);

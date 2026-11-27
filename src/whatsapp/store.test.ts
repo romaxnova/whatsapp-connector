@@ -105,6 +105,27 @@ test('a chat first seen under a LID merges into the phone number once WhatsApp m
   assert.ok(s.chat('33622222222@s.whatsapp.net'));
 });
 
+test('a reply from someone the user wrote to first (a chat kept under a LID) is stored, and the two chats merge', () => {
+  const { s } = store();
+  // The user writes first to a number not in the address book: WhatsApp keeps that chat under a LID.
+  s.ingest([waMsg({ chat: '26044799127739@lid', id: 'OUT1', ts: 100, fromMe: true, message: { conversation: 'hi Anđela, Roman here' } })], { live: true });
+  assert.ok(s.chat('26044799127739@lid'));
+  // The reply carries the phone number alongside: merging the chats used to open a transaction inside the
+  // one storing the batch, and the whole batch was lost.
+  const stored = s.ingest(
+    [
+      waMsg({ chat: '26044799127739@lid', remoteJidAlt: '381629630365@s.whatsapp.net', id: 'IN1', ts: 101, pushName: 'Anđela', message: { conversation: 'Of course, I can prepare a written market valuation' } }),
+      waMsg({ chat: ALICE, id: 'OTHER', ts: 102, message: { conversation: 'unrelated' } }),
+    ],
+    { live: true },
+  );
+  assert.equal(stored, 2);
+  assert.ok(!s.chats().some((c) => c.jid.endsWith('@lid')), 'merged into the phone number');
+  assert.equal(s.chat('26044799127739@lid')!.jid, '381629630365@s.whatsapp.net', 'the LID now leads to it');
+  assert.deepEqual(s.messages('381629630365@s.whatsapp.net', { limit: 5 }).messages.map((m) => m.id), ['OUT1', 'IN1']);
+  assert.ok(s.chat(ALICE));
+});
+
 test('unread counts: history sets them, live updates add, a read resets', () => {
   const { s } = store();
   s.upsertChat({ id: ALICE, unreadCount: 3 }, true);

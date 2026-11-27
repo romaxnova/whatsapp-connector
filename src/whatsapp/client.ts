@@ -21,7 +21,7 @@ import type { WAMessageKey } from 'baileys';
 import QRCode from 'qrcode';
 import type { Logger } from '../log.js';
 import { withoutUnfinishedPairing, type SqliteAuthState } from './auth-state.js';
-import type { MessageStore } from './store.js';
+import { IngestError, type MessageStore } from './store.js';
 
 export type LinkState =
   | { state: 'unlinked' }
@@ -303,7 +303,7 @@ export class WhatsAppService implements WhatsAppPort {
         for (const m of lidPnMappings ?? []) this.store.mapLid(m.lid, m.pn);
         for (const c of contacts) this.store.upsertContact(c);
         for (const c of chats) this.store.upsertChat(c, true);
-        const n = this.store.ingest(messages, { live: false });
+        const n = this.ingest(messages, false);
         this.historySync.chunks++;
         this.historySync.messages += n;
         this.historySync.chats += chats.length;
@@ -331,7 +331,7 @@ export class WhatsAppService implements WhatsAppPort {
         // A chat with no message here yet (left out of the phone's history): once its first message is in,
         // the phone is asked for the ones before it, so quiet groups fill in by themselves when they wake up.
         const empty = live ? [...new Set(messages.map((m) => m.key.remoteJid).filter((j): j is string => Boolean(j) && !j!.endsWith('@broadcast')))].filter((j) => this.store.count(j) === 0) : [];
-        this.store.ingest(messages, { live });
+        this.ingest(messages, live);
         for (const jid of empty) if (this.store.count(jid) > 0 && !this.store.getMeta(`backfilled:${jid}`)) this.queueBackfill(jid);
       }),
     );
@@ -352,6 +352,17 @@ export class WhatsAppService implements WhatsAppPort {
     sock.ev.on('groups.upsert', (list) => this.safely('groups', () => list.forEach((g) => this.store.upsertGroup(g))));
     sock.ev.on('groups.update', (list) => this.safely('groups', () => list.forEach((g) => g.id && this.store.upsertGroup(g as { id: string }))));
     sock.ev.on('group-participants.update', ({ id }) => void this.refreshGroup(id).catch(() => undefined));
+  }
+
+  /** Stores messages; one that cannot be stored is logged and skipped, the others are kept. */
+  private ingest(messages: WAMessage[], live: boolean): number {
+    try {
+      return this.store.ingest(messages, { live });
+    } catch (err) {
+      if (!(err instanceof IngestError)) throw err;
+      this.log.error('some whatsapp messages could not be stored', { error: err.message });
+      return err.stored;
+    }
   }
 
   private safely(what: string, fn: () => unknown): void {

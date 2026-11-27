@@ -275,12 +275,17 @@ export const loadOlderTool = defineTool({
   name: 'whatsapp_load_older',
   title: 'Load older messages of a chat',
   description:
-    "Asks the user's phone for up to 50 messages older than the oldest one the index has for a chat (WhatsApp keeps no history on its servers: the phone sends it, and must be online). Waits up to 20 seconds for them, then reports how many arrived; whatsapp_read_chat then shows them. Repeat to go further back.",
-  inputSchema: { chat: chatParam, count: z.number().int().min(1).max(50).optional().describe('Default 50.') },
+    "Asks the user's phone for up to 50 messages older than the oldest one the index has for a chat (WhatsApp keeps no history on its servers: the phone sends it, and must be online). Waits up to 20 seconds for them, then reports how many arrived; whatsapp_read_chat then shows them. Repeat to go further back. With before (a message id), it asks for the ones before that message instead: this fills a gap, when the user sees messages on the phone that the index lacks between two it has.",
+  inputSchema: {
+    chat: chatParam,
+    count: z.number().int().min(1).max(50).optional().describe('Default 50.'),
+    before: z.string().min(4).max(128).optional().describe('A message id in this chat: ask for the messages just before it (to fill a gap) rather than before the oldest one.'),
+  },
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
   async handler(args, ctx) {
     const chat = await resolveChat(ctx, args.chat);
-    const oldest = ctx.store.oldest(chat.jid);
+    const oldest = args.before ? ctx.store.anchor(chat.jid, args.before) : ctx.store.oldest(chat.jid);
+    if (args.before && !oldest) throw new ToolInputError(`Message ${args.before} is not in ${chat.name}: take an id from whatsapp_read_chat.`);
     if (!oldest) throw new ToolInputError(`None of the messages of ${chat.name} are here yet, and WhatsApp can only send older ones counting back from a message already here. As soon as one message is written in it (the user can send one from the phone), call this again.`);
     const before = ctx.store.count(chat.jid);
     await ctx.wa.requestOlder(chat.jid, oldest, args.count ?? 50);

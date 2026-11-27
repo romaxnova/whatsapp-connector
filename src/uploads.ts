@@ -14,7 +14,7 @@
  * database too, so a link the user has open survives a deploy.
  */
 import { createHash, randomBytes } from 'node:crypto';
-import type { Db } from './db.js';
+import { transaction, type Db } from './db.js';
 import { bytesKeyId, decryptBytes, DecryptError, deriveKey, encryptBytes, keyId } from './crypto.js';
 
 export class UploadError extends Error {
@@ -249,15 +249,9 @@ export class SqliteUploadVault implements UploadVault {
   }
 
   saveAll(files: StagedFile[]): void {
-    this.db.exec('BEGIN');
-    try {
+    transaction(this.db, () => {
       for (const f of files) this.save(f);
-      this.db.exec('COMMIT');
-    } catch (err) {
-      // SQLite already rolled back on some errors (SQLITE_FULL); a second ROLLBACK would hide the real error.
-      if (this.db.isTransaction) this.db.exec('ROLLBACK');
-      throw err;
-    }
+    });
   }
 
   delete(id: string): boolean {
