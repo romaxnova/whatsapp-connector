@@ -45,9 +45,9 @@ export interface OcrConfig {
 
 export const DEFAULT_STT_MODEL = 'scribe_v1';
 export const DEFAULT_TRANSCRIBE_MAX_SECONDS = 600;
-/** Where the image puts whisper.cpp and its multilingual "base" model (quantized, 57 MB). */
+/** Where the image puts whisper.cpp and its multilingual "small" model (quantized, 181 MB; clearly better than "base" in Russian). */
 export const DEFAULT_WHISPER_BIN = '/opt/whisper/whisper-cli';
-export const DEFAULT_WHISPER_MODEL = '/opt/whisper/ggml-base-q5_1.bin';
+export const DEFAULT_WHISPER_MODEL = '/opt/whisper/ggml-small-q5_1.bin';
 export const DEFAULT_OCR_LANGUAGES = 'eng+fra+rus';
 /** Bigger files are not sent for transcription (a voice note of 10 minutes is about 5 MB). */
 export const MAX_TRANSCRIBE_BYTES = 25 * 1024 * 1024;
@@ -137,7 +137,7 @@ export async function transcribe(
   return { text: (parsed.text ?? '').trim(), ...(parsed.language_code ? { language: parsed.language_code } : {}) };
 }
 
-/** One local transcription at a time: each uses several cores and about 300 MB while it runs. */
+/** One local transcription at a time: each uses several cores and about 400 MB while it runs. */
 let localQueue: Promise<unknown> = Promise.resolve();
 
 /** About how long Whisper takes on this server for audio of that length (seconds). */

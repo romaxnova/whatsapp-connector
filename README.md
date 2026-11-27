@@ -103,7 +103,7 @@ To update later, redeploy the service: Railway pulls the newest image.
 
 `whatsapp_get_file` turns media into text, only for the file Claude opens, and remembers the result (encrypted, 180 days) so each file is worked out once:
 
-- **Voice notes, audio and short videos → transcript.** Without any key, for free, on your server by Whisper (whisper.cpp, built into the image): a 2-minute voice note takes about 20 to 40 seconds and the audio never leaves the server; a longer one finishes in the background, and Claude opens it again a minute later. With `ELEVENLABS_API_KEY` set, ElevenLabs speech to text is used instead (more accurate, uses that account's quota); `TRANSCRIBE=local` keeps Whisper even then. `TRANSCRIBE_MAX_SECONDS` (default 600) caps the length, `TRANSCRIBE=off` turns it off.
+- **Voice notes, audio and short videos → transcript.** Without any key, for free, on your server by Whisper (whisper.cpp, built into the image): a 2-minute voice note takes about 15 to 40 seconds and the audio never leaves the server; a longer one finishes in the background, and Claude opens it again a minute later. With `ELEVENLABS_API_KEY` set, ElevenLabs speech to text is used instead (more accurate, uses that account's quota); `TRANSCRIBE=local` keeps Whisper even then. `TRANSCRIBE_MAX_SECONDS` (default 600) caps the length, `TRANSCRIBE=off` turns it off.
 - **Photos → their text**, read by Tesseract on your own server: the image never leaves it, and it costs nothing. Good on screenshots, listings, documents and receipts; weak on handwriting. Claude still gets the image too, unless it asks for the text only (`include_image: false`), which is cheaper. `OCR_LANGUAGES` (default `eng+fra+rus`), `OCR=off`.
 
 ## What it keeps

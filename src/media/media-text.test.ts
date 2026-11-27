@@ -16,7 +16,7 @@ test('transcription is on with the ElevenLabs key, OCR unless turned off', () =>
   assert.equal(transcribeConfig({ ELEVENLABS_API_KEY: 'k', TRANSCRIBE_MAX_SECONDS: '120' }, none)!.maxSeconds, 120);
   // Without a key, Whisper on the server (free) whenever the image has it.
   const all = () => true;
-  assert.deepEqual(transcribeConfig({ WHISPER_THREADS: '2' }, all), { provider: 'local', binary: '/opt/whisper/whisper-cli', model: '/opt/whisper/ggml-base-q5_1.bin', threads: 2, maxSeconds: 600 });
+  assert.deepEqual(transcribeConfig({ WHISPER_THREADS: '2' }, all), { provider: 'local', binary: '/opt/whisper/whisper-cli', model: '/opt/whisper/ggml-small-q5_1.bin', threads: 2, maxSeconds: 600 });
   assert.equal(transcribeConfig({ ELEVENLABS_API_KEY: 'k', TRANSCRIBE: 'local' }, all)!.provider, 'local', 'free even with a key');
   assert.equal(transcribeConfig({ TRANSCRIBE: 'elevenlabs' }, all), undefined);
   assert.equal(transcribeConfig({ TRANSCRIBE: 'off' }, all), undefined);

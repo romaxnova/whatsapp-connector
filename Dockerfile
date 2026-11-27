@@ -13,11 +13,11 @@ RUN npm run build \
 
 # Whisper (whisper.cpp) transcribes voice notes on this server when no ElevenLabs key is set: free, and the
 # audio never leaves the server. Built for any x86-64 or arm64 CPU (no host-specific instructions), with the
-# multilingual "base" model (quantized, 57 MB), checked against its published SHA-256.
+# multilingual "small" model (quantized, 181 MB), checked against its published SHA-256.
 FROM node:24-slim AS whisper
 ARG WHISPER_CPP_VERSION=v1.8.2
-ARG WHISPER_MODEL=ggml-base-q5_1.bin
-ARG WHISPER_MODEL_SHA256=422f1ae452ade6f30a004d7e5c6a43195e4433bc370bf23fac9cc591f01a8898
+ARG WHISPER_MODEL=ggml-small-q5_1.bin
+ARG WHISPER_MODEL_SHA256=ae85e4a935d7a567bd102fe55afc16bb595bdb618e11b2fc7591bc08120411bb
 RUN apt-get update \
   && apt-get install -y --no-install-recommends ca-certificates curl git cmake make g++ \
   && rm -rf /var/lib/apt/lists/*
