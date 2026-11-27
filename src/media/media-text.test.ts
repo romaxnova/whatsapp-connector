@@ -1,24 +1,32 @@
 import { test } from 'node:test';
+import { existsSync, readFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import sharp from 'sharp';
 import { openDatabase } from '../db.js';
-import { cleanOcr, MediaTextCache, MediaTextError, ocr, ocrConfig, remembered, transcribe, transcribeConfig } from './media-text.js';
+import { cleanOcr, cleanTranscript, MediaTextCache, MediaTextError, ocr, ocrConfig, remembered, rememberedSoon, transcribe, transcribeConfig, transcribeLocally } from './media-text.js';
 
 const hasTesseract = spawnSync('tesseract', ['--version']).status === 0;
 
 test('transcription is on with the ElevenLabs key, OCR unless turned off', () => {
-  assert.equal(transcribeConfig({}), undefined);
-  assert.deepEqual(transcribeConfig({ ELEVENLABS_API_KEY: 'k' }), { apiKey: 'k', modelId: 'scribe_v1', maxSeconds: 600 });
+  const none = () => false;
+  assert.equal(transcribeConfig({}, none), undefined, 'no key and no Whisper on this machine');
+  assert.deepEqual(transcribeConfig({ ELEVENLABS_API_KEY: 'k' }, none), { provider: 'elevenlabs', apiKey: 'k', modelId: 'scribe_v1', maxSeconds: 600 });
   assert.equal(transcribeConfig({ ELEVENLABS_API_KEY: 'k', TRANSCRIBE: 'off' }), undefined);
-  assert.equal(transcribeConfig({ ELEVENLABS_API_KEY: 'k', TRANSCRIBE_MAX_SECONDS: '120' })!.maxSeconds, 120);
+  assert.equal(transcribeConfig({ ELEVENLABS_API_KEY: 'k', TRANSCRIBE_MAX_SECONDS: '120' }, none)!.maxSeconds, 120);
+  // Without a key, Whisper on the server (free) whenever the image has it.
+  const all = () => true;
+  assert.deepEqual(transcribeConfig({ WHISPER_THREADS: '2' }, all), { provider: 'local', binary: '/opt/whisper/whisper-cli', model: '/opt/whisper/ggml-base-q5_1.bin', threads: 2, maxSeconds: 600 });
+  assert.equal(transcribeConfig({ ELEVENLABS_API_KEY: 'k', TRANSCRIBE: 'local' }, all)!.provider, 'local', 'free even with a key');
+  assert.equal(transcribeConfig({ TRANSCRIBE: 'elevenlabs' }, all), undefined);
+  assert.equal(transcribeConfig({ TRANSCRIBE: 'off' }, all), undefined);
   assert.deepEqual(ocrConfig({}), { languages: 'eng+fra+rus' });
   assert.equal(ocrConfig({ OCR: 'off' }), undefined);
   assert.deepEqual(ocrConfig({ OCR_LANGUAGES: 'eng; rm -rf /' }), { languages: 'eng+fra+rus' }, 'only language codes reach the command line');
 });
 
 test('transcribe: posts the audio to ElevenLabs speech to text, refuses long audio before any call', async () => {
-  const cfg = { apiKey: 'secret', modelId: 'scribe_v1', maxSeconds: 60 };
+  const cfg = { provider: 'elevenlabs' as const, apiKey: 'secret', modelId: 'scribe_v1', maxSeconds: 60 };
   let calls = 0;
   const fake = (async (url: string | URL, init?: RequestInit) => {
     calls++;
@@ -63,4 +71,34 @@ test('ocr reads the text of a screenshot', { skip: !hasTesseract && 'tesseract i
   const text = await ocr(png, { languages: 'eng+fra+rus' });
   assert.match(text ?? '', /Appartement T2 1100/);
   assert.match(text ?? '', /Квартира/);
+});
+
+test('Whisper output: one paragraph, without its silence and music markers', () => {
+  assert.equal(cleanTranscript(' Salut Pierre,\n c\'est Philippe. [BLANK_AUDIO]\n\n(musique)\n'), "Salut Pierre, c'est Philippe.");
+  assert.equal(cleanTranscript('[BLANK_AUDIO]\n'), '');
+});
+
+test('a long transcription goes on in the background, is remembered, and is not started twice', async () => {
+  const db = openDatabase(':memory:');
+  const cache = new MediaTextCache(db, [Buffer.alloc(32, 7)]);
+  let runs = 0;
+  let finish!: (t: string) => void;
+  const slow = () => (runs++, new Promise<string>((r) => (finish = r)));
+  assert.deepEqual(await rememberedSoon(cache, 'stt:a', slow, 20), { text: undefined, cached: false, pending: true });
+  const again = rememberedSoon(cache, 'stt:a', slow, 1000);
+  finish('Bonjour.');
+  assert.deepEqual(await again, { text: 'Bonjour.', cached: false });
+  assert.equal(runs, 1, 'the second call waited on the same job');
+  assert.deepEqual(await rememberedSoon(cache, 'stt:a', slow, 20), { text: 'Bonjour.', cached: true });
+  await assert.rejects(rememberedSoon(cache, 'stt:b', async () => { throw new MediaTextError('broken'); }, 1000), /broken/);
+});
+
+// Runs only where whisper.cpp and a model are installed (the Docker image, or WHISPER_BIN/WHISPER_MODEL/WHISPER_TEST_AUDIO set).
+const local = transcribeConfig(process.env, existsSync);
+const sample = process.env['WHISPER_TEST_AUDIO'];
+test('Whisper on this server transcribes a voice note', { skip: !(local?.provider === 'local' && sample && existsSync(sample)) && 'whisper.cpp or WHISPER_TEST_AUDIO not here' }, async () => {
+  const r = await transcribeLocally(local as Extract<typeof local, { provider: 'local' }>, readFileSync(sample!), { seconds: 30 });
+  assert.match(r.text, /Pierre/);
+  assert.equal(r.language, 'fr');
+  await assert.rejects(transcribeLocally(local as Extract<typeof local, { provider: 'local' }>, Buffer.from('x'), { seconds: 99_999 }), /TRANSCRIBE_MAX_SECONDS/);
 });

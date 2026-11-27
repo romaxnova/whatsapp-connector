@@ -11,9 +11,29 @@ RUN npm run build \
   && npm prune --omit=dev --no-audit --no-fund \
   && find dist \( -name '*.test.js' -o -name '*.test.js.map' \) -delete
 
+# Whisper (whisper.cpp) transcribes voice notes on this server when no ElevenLabs key is set: free, and the
+# audio never leaves the server. Built for any x86-64 or arm64 CPU (no host-specific instructions), with the
+# multilingual "base" model (quantized, 57 MB), checked against its published SHA-256.
+FROM node:24-slim AS whisper
+ARG WHISPER_CPP_VERSION=v1.8.2
+ARG WHISPER_MODEL=ggml-base-q5_1.bin
+ARG WHISPER_MODEL_SHA256=422f1ae452ade6f30a004d7e5c6a43195e4433bc370bf23fac9cc591f01a8898
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends ca-certificates curl git cmake make g++ \
+  && rm -rf /var/lib/apt/lists/*
+RUN git clone --depth 1 --branch "$WHISPER_CPP_VERSION" https://github.com/ggml-org/whisper.cpp /src \
+  && cmake -S /src -B /src/build -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWHISPER_BUILD_TESTS=OFF -DWHISPER_BUILD_EXAMPLES=ON -DGGML_NATIVE=OFF -DGGML_OPENMP=OFF \
+  && cmake --build /src/build -j"$(nproc)" --target whisper-cli \
+  && mkdir -p /opt/whisper \
+  && cp /src/build/bin/whisper-cli /opt/whisper/ \
+  && curl -fsSL --retry 3 -o "/opt/whisper/$WHISPER_MODEL" "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/$WHISPER_MODEL" \
+  && echo "$WHISPER_MODEL_SHA256  /opt/whisper/$WHISPER_MODEL" | sha256sum -c - \
+  && rm -rf /src
+
 FROM node:24-slim
 ENV NODE_ENV=production PORT=8080
-# ffmpeg turns ElevenLabs speech into WhatsApp voice notes (Ogg Opus); only used by whatsapp_send_voice.
+# ffmpeg turns ElevenLabs speech into WhatsApp voice notes (Ogg Opus) for whatsapp_send_voice, and voice
+# notes into 16 kHz audio for Whisper.
 # tesseract reads the text in photos and scanned PDFs (OCR) on this server, in English, French and Russian;
 # poppler-utils (pdftoppm) turns the pages of a scanned PDF into images for it.
 RUN apt-get update \
@@ -29,6 +49,7 @@ WORKDIR /app
 COPY --from=build /app/package.json ./
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
+COPY --from=whisper /opt/whisper /opt/whisper
 COPY docker/entrypoint.sh /usr/local/bin/wa-entrypoint
 RUN chmod 0755 /usr/local/bin/wa-entrypoint && mkdir -p /data && chown node:node /data
 EXPOSE 8080

@@ -3,7 +3,10 @@
  * Excel, text, photos), and hand them to G-Spot Assistant for Drive or Gmail.
  */
 import { readDocument } from '../../media/documents.js';
-import { MediaTextError, ocr, remembered, transcribe } from '../../media/media-text.js';
+import { localEstimate, MediaTextError, ocr, remembered, rememberedSoon, transcribe } from '../../media/media-text.js';
+
+/** How long get_file waits for Whisper here before letting it finish in the background. */
+const LOCAL_WAIT_MS = 40_000;
 import * as z from 'zod';
 import type { WAMessage } from 'baileys';
 import { clip, clipNote, defineTool, jsonResult, textResult, ToolInputError, withImage, type ToolContext } from '../registry.js';
@@ -211,14 +214,20 @@ async function photoText(ctx: ToolContext, ref: string, data: Buffer): Promise<s
   }
 }
 
-/** A voice note, audio or video as a transcript (ElevenLabs), remembered; or why it cannot be. */
+/** A voice note, audio or video as a transcript (ElevenLabs, or Whisper on this server), remembered; or why it cannot be. */
 async function speechText(ctx: ToolContext, ref: string, data: Buffer, opts: { filename?: string; mimetype?: string; seconds?: number }, moveTool: string): Promise<string> {
   const cfg = ctx.config.transcribe;
-  if (!cfg) return `[It can be transcribed once ELEVENLABS_API_KEY is set in this server's settings. Meanwhile ${moveTool} moves it to Drive, where the user can play it.]`;
+  if (!cfg) return `[Transcription is not available on this server: TRANSCRIBE is off, or (outside the Docker image) whisper.cpp is missing and ELEVENLABS_API_KEY is not set. Meanwhile ${moveTool} moves it to Drive, where the user can play it.]`;
+  const local = cfg.provider === 'local';
   try {
-    const { text } = await remembered(ctx.mediaText, ref, async () => (await transcribe(cfg, data, opts, ctx.fetchImpl)).text || undefined);
-    if (text) ctx.log.info('transcribed', { seconds: opts.seconds });
-    return text ? `Transcript (speech to text, may contain mistakes):\n${text}` : '[No speech in it.]';
+    // Whisper here takes about a fifth of the audio's length: a long one finishes in the background.
+    const r = await rememberedSoon(ctx.mediaText, ref, async () => (await transcribe(cfg, data, opts, ctx.fetchImpl)).text || undefined, local ? LOCAL_WAIT_MS : 200_000);
+    if (r.pending) {
+      return `[Being transcribed on this server: about ${localEstimate(opts.seconds, local ? cfg.threads : 4)} s in all for ${opts.seconds ? `${Math.round(opts.seconds)} s` : 'this length'} of audio. Tell the user, then open this file again in a minute: the transcript will be ready, and is remembered.]`;
+    }
+    if (r.text && !r.cached) ctx.log.info('transcribed', { seconds: opts.seconds, by: cfg.provider });
+    const by = local ? 'speech recognition on this server' : 'speech to text';
+    return r.text ? `Transcript (${by}, may contain mistakes):\n${r.text}` : '[No speech in it.]';
   } catch (err) {
     if (err instanceof MediaTextError) return `[${err.message}]`;
     throw err;
